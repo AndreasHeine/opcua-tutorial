@@ -1,3 +1,3 @@
 # coming soon!
 
-# servertypes/servercapabilities/serveroperationallimits/
+# servertypes/servercapabilities/serveroperationallimits/serverstate/servicelevel/
