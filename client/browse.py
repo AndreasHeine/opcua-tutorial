@@ -15,10 +15,10 @@ async def main():
     print(f"Node-Id {obj} has following References:")
     for ref in refs:
         print(ref)
-        if ref.ReferenceTypeId.Identifier == 35:
+        if ref.ReferenceTypeId.Identifier == 35: #change to obj-ids
             # children
             children.append(ref)
-        elif ref.ReferenceTypeId.Identifier == 40:
+        elif ref.ReferenceTypeId.Identifier == 40: #change to obj-ids
             # typedefinition
             type_definitions.append(ref)
         else:
