@@ -22,5 +22,6 @@ server1 (basic server)
 server2 (node-management) comming soon!  
 server3 (methods) comming soon!  
 server4 (extension objects) comming soon!  
-server5 (events) comming soon!
+server5 (events) comming soon!  
+server6 (companion spec. / vendor spec.) comming soon!  
 ...  
