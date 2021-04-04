@@ -26,3 +26,11 @@ server4 (extension objects) comming soon!
 server5 (events) comming soon!  
 server6 (companion spec. / vendor spec.) comming soon!  
 ...  
+  
+### Information:  
+OPC UA Online Reference: https://reference.opcfoundation.org/v104/  
+Part 1: Concepts https://youtu.be/E2XJfmAEdqw  
+Part 2: Transport https://youtu.be/VCQnLIy0cDY   
+Part 3: Security https://youtu.be/z4zNgNdauLY  
+Part 4: Profiles https://youtu.be/CCvlLASACjE  
+Part 5: Discovery https://youtu.be/1NlbUAlOdcA  
