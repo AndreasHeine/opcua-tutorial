@@ -16,6 +16,7 @@ write (write node atttibutes) comming soon!
 subscribe (subscribe different kinds of data) comming soon!  
 client1 (basic client structure) comming soon!  
 client2 (advanced client structure) comming soon!  
+client3 (companion spec.)
   
 ### Server:  
 server1 (basic server)  
