@@ -1,10 +1,17 @@
 import asyncio
+import logging
 from asyncua import Client, ua
 
+logging.basicConfig(level=logging.DEBUG)
+_logger = logging.getLogger('asyncua')
+
 async def main():
-    client = Client(url="opc.tcp://127.0.0.1:4840", timeout=8)
+    client = Client(url="opc.tcp://127.0.0.1:4840/UA", timeout=8)
+    client.set_user("user")
+    client.set_password("pw")
     await client.connect()
     await client.load_data_type_definitions()
+    # await client.load_type_definitions()
     
     print("-----------------------------------------------------")
     # get the references of a single node
