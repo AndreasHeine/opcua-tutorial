@@ -3,7 +3,7 @@
 this is a small tutorial for opcua-asyncio (asyncua)  
   
 prerequirements:  
--python 3.7<  
+-python v3.7 or higher  
 -vs code (or something similar)  
 -basics of virtual environments  
 -basics of asyncio  
