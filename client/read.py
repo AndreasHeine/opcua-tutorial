@@ -21,25 +21,43 @@ async def main():
     print("-----------------------------------------------------")
     # read multiple node attributes at once
     print("ReadValues:")
-    result = await client.read_values([client.get_node("ns=0;i=2267"), client.get_node("ns=0;i=2256")])
+    result = await client.read_values([
+        client.get_node("ns=0;i=2267"), 
+        client.get_node("ns=0;i=2256")
+    ])
     for res in result:
         print(res)
 
     print("-----------------------------------------------------")  
     print("ReadAttributeValues:")
-    result = await client.uaclient.read_attributes([client.get_node("ns=0;i=2267").nodeid, client.get_node("ns=0;i=2256").nodeid], ua.AttributeIds.Value)
+    result = await client.uaclient.read_attributes([
+        client.get_node("ns=0;i=2267").nodeid, 
+        client.get_node("ns=0;i=2256").nodeid
+        ], 
+        ua.AttributeIds.Value
+    )
     for res in result:
         print(res)
 
     print("-----------------------------------------------------")
     print("ReadBrowseNames:")
-    result = await client.uaclient.read_attributes([client.get_node("ns=0;i=2267").nodeid, client.get_node("ns=0;i=2256").nodeid], ua.AttributeIds.BrowseName)
+    result = await client.uaclient.read_attributes([
+        client.get_node("ns=0;i=2267").nodeid, 
+        client.get_node("ns=0;i=2256").nodeid
+        ], 
+        ua.AttributeIds.BrowseName
+    )
     for res in result:
         print(res)
 
     print("-----------------------------------------------------")
     print("ReadDataTypes:")
-    result = await client.uaclient.read_attributes([client.get_node("ns=0;i=2267").nodeid, client.get_node("ns=0;i=2256").nodeid], ua.AttributeIds.DataType)
+    result = await client.uaclient.read_attributes([
+        client.get_node("ns=0;i=2267").nodeid, 
+        client.get_node("ns=0;i=2256").nodeid
+        ], 
+        ua.AttributeIds.DataType
+    )
     for res in result:
         print(res)
 
