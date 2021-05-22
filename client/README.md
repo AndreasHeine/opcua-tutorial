@@ -1,7 +1,7 @@
 The Server used in the Clients section is the "OPC UA C++ Demo Server V1.7.4"  
-URL: "opc.tcp://127.0.0.1:48010"  
+**URL:** "opc.tcp://127.0.0.1:48010"  
 
-Best Practices:  
+**Best Practices:**  
 Clients should monitor its connection by reading cyclic the ServerState/ServiceLevel!  
 Clients should Disconnect if ServerState or ServicLevel is not "0:Running" and >200!  
 Clients should always check ServersCapabillities!  
