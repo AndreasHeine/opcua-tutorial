@@ -1,13 +1,13 @@
 import asyncio
+import logging
 from asyncua import Client, ua
 
+logging.basicConfig(level=logging.WARNING)
+_logger = logging.getLogger('asyncua')
+
 async def main():
-    client = Client(url="opc.tcp://127.0.0.1:4840/UA", timeout=8)
-    client.set_user("user")
-    client.set_password("pw")
+    client = Client(url="opc.tcp://127.0.0.1:48010", timeout=8)
     await client.connect()
-    # await client.load_data_type_definitions() # v1.04
-    await client.load_type_definitions() # v1.03
 
     print("-----------------------------------------------------")
     # read one node attribute at a time
@@ -24,6 +24,7 @@ async def main():
     result = await client.read_values([
         client.get_node("ns=0;i=2267"), 
         client.get_node("ns=0;i=2256")
+        # ...
     ])
     for res in result:
         print(res)
@@ -33,6 +34,7 @@ async def main():
     result = await client.uaclient.read_attributes([
         client.get_node("ns=0;i=2267").nodeid, 
         client.get_node("ns=0;i=2256").nodeid
+        # ...
         ], 
         ua.AttributeIds.Value
     )
@@ -44,6 +46,7 @@ async def main():
     result = await client.uaclient.read_attributes([
         client.get_node("ns=0;i=2267").nodeid, 
         client.get_node("ns=0;i=2256").nodeid
+        # ...
         ], 
         ua.AttributeIds.BrowseName
     )
@@ -55,6 +58,7 @@ async def main():
     result = await client.uaclient.read_attributes([
         client.get_node("ns=0;i=2267").nodeid, 
         client.get_node("ns=0;i=2256").nodeid
+        # ...
         ], 
         ua.AttributeIds.DataType
     )
