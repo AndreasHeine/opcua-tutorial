@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 from asyncua import Server, ua
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.WARNING)
 _logger = logging.getLogger('asyncua')
 
 async def main():

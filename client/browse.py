@@ -8,7 +8,6 @@ _logger = logging.getLogger('asyncua')
 async def main():
     client = Client(url="opc.tcp://127.0.0.1:48010", timeout=8)
     await client.connect()
-    await client.load_data_type_definitions()
 
     print("-----------------------------------------------------")
     # get the references of a single node
