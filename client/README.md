@@ -8,7 +8,7 @@ Clients should always check ServersCapabillities!
 Clients should always check OperationalLimits and adjust to them!  
 Clients should Browse the TypeDefinition before writing it, if the DataType is not known!  
 Clients should check the NamespaceArray for known Companion-Specifications!  
-Clients should only access the Information they really need!
+Clients should only access the Information they really need!  
 Clients should check the AccessLevel before writing to a Variable/Property!  
 Clients should bundle the Read/Write/Browse requests where ever its possible to reduce the overhead per information!  
   
