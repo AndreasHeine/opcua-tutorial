@@ -1,4 +1,4 @@
-The Server used in the Clients section is the "OPC UA C++ Demo Server V1.7.4"  
+The Server used in the Clients section is the "OPC UA C++ Demo Server V1.7.4 (Windows)" (https://www.unified-automation.com/de/downloads/opc-ua-servers.html)  
 URL: "opc.tcp://127.0.0.1:48010"  
 
 Best Practices:  
