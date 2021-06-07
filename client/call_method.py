@@ -9,6 +9,8 @@ async def main():
     client = Client(url="opc.tcp://127.0.0.1:48010", timeout=8)
     await client.connect()
     
+    print("-----------------------------------------------------")
+
     method_parent = client.get_node("ns=7;s=Demo.CTT.Methods")
     method_node = client.get_node("ns=7;s=Demo.CTT.Methods.MethodIO") # the method just adds two Int32 numbers
     method_inputs = client.get_node("ns=7;s=Demo.CTT.Methods.MethodIO.InputArguments")
@@ -19,10 +21,15 @@ async def main():
     print("Inputs:")
     for each in inputs:
         print("Name:", each.Name, "DataType:", each.DataType, "-> UInt32")
+
+    print("-----------------------------------------------------")
+
     outputs = await method_ouputs.read_value() # returns a list of Argument-Class
     print("Outputs:")
     for each in outputs:
         print("Name:", each.Name, "DataType:", each.DataType, "-> UInt32")
+
+    print("-----------------------------------------------------")
 
     # sometimes its important to check if a method is executable/userexecutable:
     executable = await client.uaclient.read_attributes([method_node.nodeid], ua.AttributeIds.Executable)
@@ -30,8 +37,10 @@ async def main():
     userexecutable = await client.uaclient.read_attributes([method_node.nodeid], ua.AttributeIds.UserExecutable)
     print("Userxecutable:", userexecutable[0].Value.Value)
 
+    print("-----------------------------------------------------")
+
     # always specify the correct VariantType! 
-    inarg1 = ua.Variant(20, ua.VariantType.UInt32) 
+    inarg1 = ua.Variant(20, ua.VariantType.UInt32)
     inarg2 = ua.Variant(13, ua.VariantType.UInt32)
 
     if executable[0].Value.Value and userexecutable[0].Value.Value:
