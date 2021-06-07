@@ -16,17 +16,19 @@ async def main():
 
     # if you dont know the Input-/OutputArguments:
     inputs = await method_inputs.read_value() # returns a list of Argument-Class
+    print("Inputs:")
     for each in inputs:
-        print(each.Name, each.DataType, "-> UInt32")
+        print("Name:", each.Name, "DataType:", each.DataType, "-> UInt32")
     outputs = await method_ouputs.read_value() # returns a list of Argument-Class
+    print("Outputs:")
     for each in outputs:
-        print(each.Name, each.DataType, "-> UInt32")
+        print("Name:", each.Name, "DataType:", each.DataType, "-> UInt32")
 
     # sometimes its important to check if a method is executable/userexecutable:
     executable = await client.uaclient.read_attributes([method_node.nodeid], ua.AttributeIds.Executable)
-    print("Executable: ", executable[0].Value.Value)
+    print("Executable:", executable[0].Value.Value)
     userexecutable = await client.uaclient.read_attributes([method_node.nodeid], ua.AttributeIds.UserExecutable)
-    print("Userxecutable: ", userexecutable[0].Value.Value)
+    print("Userxecutable:", userexecutable[0].Value.Value)
 
     # always specify the correct VariantType! 
     inarg1 = ua.Variant(20, ua.VariantType.UInt32) 
@@ -35,7 +37,7 @@ async def main():
     if executable[0].Value.Value and userexecutable[0].Value.Value:
         print(f"Calling Method: {inarg1.Value} + {inarg2.Value}")
         result = await method_parent.call_method(method_node, inarg1, inarg2) # the order of args matters!
-        print("Method Result: ", result)
+        print("Method Result:", result)
 
     await client.disconnect()
 
