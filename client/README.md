@@ -12,5 +12,5 @@ Clients should only access the Information they really need!
 Clients should check the AccessLevel before writing to a Variable/Property!  
 Clients should bundle the Read/Write/Browse requests where ever its possible to reduce the overhead per information!  
   
-Please keep in mind most OPC UA Servers responde with an bad StatusCode if a Client violates the Servers Rules, to make your application more robust you should stick to the "Best Practices" so you have less garbage requests.  
+Please keep in mind most OPC UA Servers responde with an bad statuscode if a client violates the servers rules, to make your application more robust you should stick to the "Best Practices" so you have less garbage requests.  
   
