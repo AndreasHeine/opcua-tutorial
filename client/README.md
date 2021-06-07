@@ -3,7 +3,7 @@ URL: "opc.tcp://127.0.0.1:48010"
 
 Best Practices:  
 Clients should monitor its connection by reading cyclic the ServerState/ServiceLevel!  
-Clients should Disconnect if ServerState or ServicLevel is not "0:Running" and >200!  
+Clients should Disconnect if ServerState or ServicLevel is not "0:Running" and <200!  
 Clients should always check ServersCapabillities!  
 Clients should always check OperationalLimits and adjust to them!  
 Clients should Browse the TypeDefinition before writing it, if the DataType is not known!  
