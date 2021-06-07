@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from asyncua import Client, ua
+from asyncua.common.methods import call_method
 
 logging.basicConfig(level=logging.WARNING)
 _logger = logging.getLogger('asyncua')
@@ -20,14 +21,16 @@ async def main():
     inputs = await method_inputs.read_value() # returns a list of Argument-Class
     print("Inputs:")
     for each in inputs:
-        print("Name:", each.Name, "DataType:", each.DataType, "-> UInt32")
+        dtype = await client.get_node(each.DataType).read_display_name()
+        print("Name:", each.Name, "DataType:", each.DataType, "->", dtype.Text)
 
     print("-----------------------------------------------------")
 
     outputs = await method_ouputs.read_value() # returns a list of Argument-Class
     print("Outputs:")
     for each in outputs:
-        print("Name:", each.Name, "DataType:", each.DataType, "-> UInt32")
+        dtype = await client.get_node(each.DataType).read_display_name()
+        print("Name:", each.Name, "DataType:", each.DataType, "->", dtype.Text)
 
     print("-----------------------------------------------------")
 
@@ -45,6 +48,7 @@ async def main():
 
     if executable[0].Value.Value and userexecutable[0].Value.Value:
         print(f"Calling Method: {inarg1.Value} + {inarg2.Value}")
+        # calling a method from Node-Class (parentnode)
         result = await method_parent.call_method(method_node, inarg1, inarg2) # the order of args matters!
         print("Method Result:", result)
 
