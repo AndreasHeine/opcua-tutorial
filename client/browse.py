@@ -8,34 +8,33 @@ _logger = logging.getLogger('asyncua')
 async def main():
     client = Client(url="opc.tcp://127.0.0.1:48010", timeout=8)
     await client.connect()
+    obj = client.get_objects_node()
 
     print("-----------------------------------------------------")
     # get the references of a single node
-    obj = client.get_objects_node()
     refs = await obj.get_references()
-    children = []
-    type_definitions = []
+    organizes = []
+    typedefinitions = []
     print(f"Node-Id {obj} has following References:")
     for ref in refs:
         print(ref)
         if ref.ReferenceTypeId.Identifier == ua.ObjectIds.Organizes:
             # Organizes = 35
-            children.append(ref)
+            organizes.append(ref)
         elif ref.ReferenceTypeId.Identifier == ua.ObjectIds.HasTypeDefinition:
             # HasTypeDefinition = 40
-            type_definitions.append(ref)
+            typedefinitions.append(ref)
         else:
             pass
     print("-----------------------------------------------------")
     print(f"Node-Id {obj} has following Childnodes:")
-    for child in children:
-        print(child.BrowseName.Name)
+    for each in organizes:
+        print(each.BrowseName.Name)
     print("-----------------------------------------------------")
     print(f"Node-Id {obj} is from Type:")
-    for type_definition in type_definitions:
-        print(type_definition.BrowseName.Name)
+    for each in typedefinitions:
+        print(each.BrowseName.Name)
 
-    print("-----------------------------------------------------")
     await client.disconnect()
 
 if __name__ == "__main__":
