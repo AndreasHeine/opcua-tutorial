@@ -42,7 +42,7 @@ async def main():
 
     print("-----------------------------------------------------")
 
-    # always specify the correct VariantType! 
+    # always specify the correct VariantType otherwise the server responds with BadInvalidArgument StatusCode! 
     inarg1 = ua.Variant(20, ua.VariantType.UInt32)
     inarg2 = ua.Variant(13, ua.VariantType.UInt32)
 
