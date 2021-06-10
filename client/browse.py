@@ -18,6 +18,7 @@ async def main():
     print(f"Node-Id {obj} has following References:")
     for ref in refs:
         print(ref)
+        # do some sorting an alternative would be to specify the reference filters in the browse request
         if ref.ReferenceTypeId.Identifier == ua.ObjectIds.Organizes:
             # Organizes = 35
             organizes.append(ref)
@@ -34,6 +35,26 @@ async def main():
     print(f"Node-Id {obj} is from Type:")
     for each in typedefinitions:
         print(each.BrowseName.Name)
+
+    print("-----------------------------------------------------")
+
+    # just completly custom browse request
+    params = ua.BrowseParameters()
+    params.View = ua.ViewDescription()
+    params.RequestedMaxReferencesPerNode = 1000
+    bd = ua.BrowseDescription()
+    bd.NodeId = obj.nodeid
+    bd.BrowseDirection = ua.BrowseDirection.Forward
+    bd.ReferenceTypeId = ua.NodeId(35, 0)
+    bd.IncludeSubtypes = False
+    bd.NodeClassMask = ua.NodeClass.Unspecified
+    bd.ResultMask = ua.BrowseResultMask.All
+    params.NodesToBrowse = [
+        bd
+    ]
+    res = await client.uaclient.browse(parameters=params)
+    print("Custom BrowseRequest:")
+    print(res)
 
     await client.disconnect()
 
