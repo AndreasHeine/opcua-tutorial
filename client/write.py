@@ -1,7 +1,3 @@
-# coming soon!
-
-#variant/datavalue/typesafe-write/
-
 import asyncio
 import datetime
 import logging
