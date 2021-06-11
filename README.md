@@ -13,7 +13,7 @@ prerequirements:
 browse (navigate thru the addressspace / node references)  
 read (read node attributes)  
 methods (call a opcua method)  
-write (write node atttibutes) comming soon!  
+write (write node atttibutes)
 subscribe (subscribe different kinds of data) comming soon!  
 extension objects (custom structures)  
 client1 (basic client structure) comming soon!  
