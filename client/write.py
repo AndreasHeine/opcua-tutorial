@@ -12,7 +12,7 @@ def check_writeable_bit(value):
     return False
 
 async def main():
-    client = Client(url="opc.tcp://127.0.0.1:48010", timeout=8)
+    client = Client(url="opc.tcp://127.0.0.1:48010", timeout=4)
     await client.connect()
 
     print("-----------------------------------------------------")

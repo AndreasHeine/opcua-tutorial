@@ -6,7 +6,7 @@ logging.basicConfig(level=logging.WARNING)
 _logger = logging.getLogger('asyncua')
 
 async def main():
-    client = Client(url="opc.tcp://127.0.0.1:48010", timeout=8)
+    client = Client(url="opc.tcp://127.0.0.1:48010", timeout=4)
     await client.connect()
 
     print("-----------------------------------------------------")
