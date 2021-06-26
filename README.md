@@ -14,7 +14,7 @@ browse (navigate thru the addressspace / node references)
 read (read node attributes)  
 write (write node atttibutes)  
 methods (call a opcua method)  
-subscribe (subscribe different kinds of data)
+subscribe (subscribe different kinds of data)  
 extension objects (custom structures)  
 client1 (basic client structure) __comming soon!__  
 client2 (advanced client structure) __comming soon!__  
