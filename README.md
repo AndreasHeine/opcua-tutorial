@@ -15,7 +15,7 @@ read (read node attributes)
 write (write node atttibutes)  
 methods (call a opcua method)  
 subscribe (subscribe different kinds of data)  
-extension objects (custom structures)  
+extension objects (custom structures) __comming soon!__  
 client1 (basic client structure) __comming soon!__  
 client2 (advanced client structure) __comming soon!__  
 client3 (companion spec.) __comming soon!__  
