@@ -1,6 +1,6 @@
 # opcua-tutorial  
   
-this is a small tutorial for opcua-asyncio (asyncua)  
+## this is a small tutorial for opcua-asyncio (asyncua)  
   
 prerequirements:  
 -python v3.7 or higher  
@@ -14,19 +14,19 @@ browse (navigate thru the addressspace / node references)
 read (read node attributes)  
 methods (call a opcua method)  
 write (write node atttibutes)  
-subscribe (subscribe different kinds of data) comming soon!  
+subscribe (subscribe different kinds of data) __comming soon!__  
 extension objects (custom structures)  
-client1 (basic client structure) comming soon!  
-client2 (advanced client structure) comming soon!  
-client3 (companion spec.) comming soon!  
+client1 (basic client structure) __comming soon!__  
+client2 (advanced client structure) __comming soon!__  
+client3 (companion spec.) __comming soon!__  
   
 ### Server:  
 server1 (basic server)  
-server2 (node-management) comming soon!  
-server3 (methods) comming soon!  
-server4 (extension objects) comming soon!  
-server5 (events) comming soon!  
-server6 (companion spec. / vendor spec.) comming soon!  
+server2 (node-management) __comming soon!__  
+server3 (methods) __comming soon!__  
+server4 (extension objects) __comming soon!__  
+server5 (events) __comming soon!__  
+server6 (companion spec. / vendor spec.) __comming soon!__  
 ...  
   
 ### Information:  
