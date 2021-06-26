@@ -37,13 +37,18 @@ async def main():
     print("-----------------------------------------------------")
 
     nodes = await client.get_node("ns=2;s=Demo.Dynamic.Scalar").get_children() # just get some nodes to subscribe
+    nodes.pop(8) # remove the gif (long bytestring) it would dump the console ;)
+    print("NodesToSubscribe", nodes)
 
     # Create a Subscription:
     subscription = await client.create_subscription(
                     period=1000, # the client will send each 1000 ms a publishrequest and the server responds with the changes since last publishrequest
                     handler=handler, # SubscriptionHandler which will be used for processing the notifications in the publishresponse
                     publishing=True
-                )
+    )
+    print("Created Subscription with Id:", subscription.subscription_id)
+
+    print("Start Reporting:")
 
     # Reporting:
     # each Attribute change will generate a Notification  
@@ -54,17 +59,28 @@ async def main():
         monitoring=ua.MonitoringMode.Reporting
     )
 
+    await asyncio.sleep(5)
+    await subscription.unsubscribe(node_handles)
+
+    print("-----------------------------------------------------")
+
+    print("Start Sampling:")
+
     # Sampling:
     # 
     # TODO
+    node_handles = await subscription.subscribe_data_change(
+        nodes=nodes, # a list of nodes i want to subscribe to
+        attr=ua.AttributeIds.Value, # the attribute i am interested in
+        queuesize=10, # the queuesize should be bigger then the number of changes within a publishinterval, in this case 50 valuechanges per 1000 ms
+        monitoring=ua.MonitoringMode.Sampling
+    )
 
-    await asyncio.sleep(10)
+    await asyncio.sleep(5)
+    await subscription.unsubscribe(node_handles)
 
     # Modify
     # TODO
-
-    await asyncio.sleep(10)
-    await subscription.unsubscribe(node_handles)
 
     print("-----------------------------------------------------")
     await client.disconnect()
