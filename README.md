@@ -12,9 +12,9 @@ prerequirements:
 ### Client:  
 browse (navigate thru the addressspace / node references)  
 read (read node attributes)  
-methods (call a opcua method)  
 write (write node atttibutes)  
-subscribe (subscribe different kinds of data) __comming soon!__  
+methods (call a opcua method)  
+subscribe (subscribe different kinds of data)
 extension objects (custom structures)  
 client1 (basic client structure) __comming soon!__  
 client2 (advanced client structure) __comming soon!__  
