@@ -41,7 +41,7 @@ async def subscribe(
                 monitoring=monitoring,
             )
             handle_list.append(handles)
-        return handles
+        return handle_list
 
 # TODO
 async def unsubscribe():
