@@ -71,7 +71,7 @@ async def unsubscribe():
 
 async def main():
     client = Client(url="opc.tcp://127.0.0.1:48010", timeout=4)
-    handler = SubscriptionHandler() # get an instance of the SubscriptionHandler-Class
+    handler = SubscriptionHandler()
     await client.connect()
 
     print("-----------------------------------------------------")
@@ -96,8 +96,8 @@ async def main():
     print(f"{len(nodes)} Nodes found!")
 
     subscription = await client.create_subscription(
-                    period=5000, # the client will send each 1000 ms a publishrequest and the server responds with the changes since last publishrequest
-                    handler=handler, # SubscriptionHandler which will be used for processing the notifications in the publishresponse
+                    period=5000,
+                    handler=handler,
                     publishing=True
     )
 
