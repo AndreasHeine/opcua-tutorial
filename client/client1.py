@@ -76,13 +76,31 @@ async def main():
 
     print("-----------------------------------------------------")
     print("checking ServerState")
-    # CHECK SERVERSTATE
-    # TODO
+    # a complete list of alle ServerStates: https://reference.opcfoundation.org/v104/Core/DataTypes/ServerState/
+    server_state = await client.get_node("ns=0;i=2259").read_value()
+    print("ServerState:", server_state)
+    if server_state is not 0:
+        # if the ServerState is not 0 its better to disconnect and try again later
+        await client.disconnect()
 
     print("-----------------------------------------------------")
     print("checking ServiceLevel")
-    # CHECK SERVICELEVEL
-    # TODO
+    # ServiceLevel ranges: https://reference.opcfoundation.org/v104/Core/docs/Part4/6.6.2/#Table109
+    service_level = await client.get_node("ns=0;i=2267").read_value()
+    print("ServiceLevel:", service_level)
+    if service_level >= 200:
+        print("The Server has a Healthy ServiceLevel")
+    elif service_level >= 2 and service_level <= 199:
+        print("The Server has a Degraded ServiceLevel")
+        await client.disconnect()
+    elif service_level == 1:
+        print("The Server has a NoData ServiceLevel")
+        await client.disconnect()
+    elif service_level == 0:
+        print("The Server has a Maintenance ServiceLevel")
+        await client.disconnect()
+    else:
+        pass
 
     print("-----------------------------------------------------")
     print("checking ServerCapabilities")

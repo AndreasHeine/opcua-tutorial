@@ -69,15 +69,15 @@ async def main():
     # Sampling:
     # 
     # TODO
-    node_handles = await subscription.subscribe_data_change(
-        nodes=nodes, # a list of nodes i want to subscribe to
-        attr=ua.AttributeIds.Value, # the attribute i am interested in
-        queuesize=10, # the queuesize should be bigger then the number of changes within a publishinterval, in this case 50 valuechanges per 1000 ms
-        monitoring=ua.MonitoringMode.Sampling
-    )
+    # node_handles = await subscription.subscribe_data_change(
+    #     nodes=nodes, # a list of nodes i want to subscribe to
+    #     attr=ua.AttributeIds.Value, # the attribute i am interested in
+    #     queuesize=10, # the queuesize should be bigger then the number of changes within a publishinterval, in this case 50 valuechanges per 1000 ms
+    #     monitoring=ua.MonitoringMode.Sampling
+    # )
 
-    await asyncio.sleep(5)
-    await subscription.unsubscribe(node_handles)
+    # await asyncio.sleep(5)
+    # await subscription.unsubscribe(node_handles)
 
     # Modify
     # TODO
