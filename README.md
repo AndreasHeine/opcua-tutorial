@@ -2,6 +2,10 @@
   
 ## this is a small tutorial for opcua-asyncio (asyncua)  
   
+for questions please feel free to use the discussions feature -> https://github.com/AndreasHeine/opcua-tutorial/discussions  
+please remember i dont work fulltime on this tutorial so it will take a while to get all done  
+i am also avalible for consulting and trainings -> Contact me: info@andreas-heine.net  
+  
 prerequirements:  
 -python v3.7 or higher  
 -vs code (or something similar)  
