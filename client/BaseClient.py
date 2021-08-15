@@ -17,9 +17,25 @@ async def main():
     # client.set_user = "user"
     # client.set_password = "pw"
     # await client.set_security_string("Basic256Sha256,SignAndEncrypt,cert.pem,key.pem")
-    await client.connect()
 
-    await client.disconnect()
+    # catching all networkrequests is some times important
+    try:
+        await client.connect()
+    except Exception as e: # catching all exceptions is not always wise!
+        print(e)
+        return
+
+    '''
+    clientcode!
+
+    '''
+
+    try:
+        await client.disconnect()
+    except Exception as e:  # catching all exceptions is not always wise!
+        print(e)
+        return
+
 
 if __name__ == "__main__":
     asyncio.run(main())

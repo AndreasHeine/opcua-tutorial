@@ -82,6 +82,7 @@ async def main():
     if server_state is not 0:
         # if the ServerState is not 0 its better to disconnect and try again later
         await client.disconnect()
+        return
 
     print("-----------------------------------------------------")
     print("checking ServiceLevel")
@@ -93,14 +94,17 @@ async def main():
     elif service_level >= 2 and service_level <= 199:
         print("The Server has a Degraded ServiceLevel")
         await client.disconnect()
+        return
     elif service_level == 1:
         print("The Server has a NoData ServiceLevel")
         await client.disconnect()
+        return
     elif service_level == 0:
         print("The Server has a Maintenance ServiceLevel")
         await client.disconnect()
+        return
     else:
-        pass
+        raise ValueError(f"ServiceLevel: {service_level} is out of range byte (0-255)")
 
     print("-----------------------------------------------------")
     print("checking ServerCapabilities")
