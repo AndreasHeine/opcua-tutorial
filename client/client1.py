@@ -30,6 +30,7 @@ class SubscriptionHandler:
         # DO NOT DO BLOCKING TASKS HERE , IF YOU NEED TO PROCESS THE DATA PUT IT ON A QUEUE AND PUT IT IN A SUBPROCESS (E.G. SQL QUERYS)!
         print(f"{node} -> Datachange: {data.monitored_item.Value}")
 
+
 async def subscribe(
     subscription: Subscription, 
     nodes: Union[Node, Iterable[Node]], 
@@ -46,12 +47,14 @@ async def subscribe(
 
     if not maxpercall:
         try:
+            # try to read the "MaxMonitoredItemsPerCall" value
             maxpercall = await subscription.server.get_node("i=11714").read_value()
+            if maxpercall == 0: 
+                maxpercall = None
         except:
-            maxpercall = 0
-    if maxpercall is None:
-        return await subscription.subscribe_data_change(nodes)
-    elif maxpercall == 0:
+            maxpercall = None
+
+    if not maxpercall:
         return await subscription.subscribe_data_change(nodes)
     else:
         handle_list = []
@@ -67,10 +70,12 @@ async def subscribe(
 
 # TODO
 async def unsubscribe():
+    # reverse as in subscribe() same logic applies
     pass
 
 async def main():
     client = Client(url="opc.tcp://127.0.0.1:48010", timeout=4)
+
     handler = SubscriptionHandler()
     await client.connect()
 
@@ -108,8 +113,18 @@ async def main():
 
     print("-----------------------------------------------------")
     print("checking ServerCapabilities")
-    # EXPLORE SERVERCAPABILITIES
-    # TODO
+    server_capabilities_node = client.get_node("ns=0;i=2268") # ServerCapabilities
+
+    print("checking OperationLimits")
+    operational_limits = client.get_node("ns=0;i=11704") # OperationLimits
+    operational_limits_children = await operational_limits.get_children()
+    for child in operational_limits_children:
+        name = await child.read_display_name()
+        value = await child.read_value()
+        print(f"{name.Text}: {value}")
+    
+    # typically at this point you need to adopt clientsettings to not make requests with to big nodelists
+    # build your own read/write/browse methods which respect the "OperationLimits" and which take care of chunking and requesting
 
     print("-----------------------------------------------------")
     print("subscribe to a large number of nodes")
@@ -123,7 +138,7 @@ async def main():
                     publishing=True
     )
 
-    handles = await subscribe(subscription=subscription, nodes=nodes, queuesize=100, maxpercall=250)
+    handles = await subscribe(subscription=subscription, nodes=nodes, queuesize=100, maxpercall=None)
 
     await asyncio.sleep(30)
 
