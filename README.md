@@ -2,7 +2,7 @@
   
 ## this is a small tutorial for opcua-asyncio (asyncua)  
   
-for questions please feel free to use the discussions feature -> https://github.com/AndreasHeine/opcua-tutorial/discussions  
+for questions please feel free to use the discussions feature -> [discussions](https://github.com/AndreasHeine/opcua-tutorial/discussions)  
 please remember i dont work fulltime on this tutorial so it will take a while to get all done  
 i am also avalible for consulting and trainings -> Contact me: info@andreas-heine.net  
   
