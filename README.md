@@ -18,7 +18,7 @@ i am also avalible for consulting and trainings -> Contact me: info@andreas-hein
 :heavy_check_mark: read (read node attributes)  
 :heavy_check_mark: write (write node atttibutes)  
 :heavy_check_mark: methods (call a opcua method)  
-:heavy_check_mark: subscribe (subscribe different kinds of data)  
+:waning_gibbous_moon: subscribe (subscribe different kinds of data) __WIP!__  
 :x: extension objects (custom structures) __comming soon!__  
 :heavy_check_mark: BaseClient (basic client structure)  
 :last_quarter_moon: Client1 (simple client structure) __WIP!__  
