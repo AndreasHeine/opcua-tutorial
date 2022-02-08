@@ -65,22 +65,24 @@ async def main():
     print("-----------------------------------------------------")
 
     print("Start Sampling:")
+    print("Selected node: ns=2;s=Demo.Dynamic.Scalar.Float")
 
-    # Sampling:
-    # 
-    # TODO
-    # node_handles = await subscription.subscribe_data_change(
-    #     nodes=nodes, # a list of nodes i want to subscribe to
-    #     attr=ua.AttributeIds.Value, # the attribute i am interested in
-    #     queuesize=10, # the queuesize should be bigger then the number of changes within a publishinterval, in this case 50 valuechanges per 1000 ms
-    #     monitoring=ua.MonitoringMode.Sampling
-    # )
+    node_handles = await subscription.subscribe_data_change(
+    nodes=[client.get_node("ns=2;s=Demo.Dynamic.Scalar.Float")], # 
+    attr=ua.AttributeIds.Value, # the attribute i am interested in
+    queuesize=50, # the queuesize should be bigger then the number of changes within a publishinterval, in this case 50 valuechanges per 1000 ms
+    monitoring=ua.MonitoringMode.Sampling
+    )
+    print("The OPC UA Server is now sampling in the background, till we change MonitoringMode to Reporting!")
+    print("-----------------------------------------------------")
 
-    # await asyncio.sleep(5)
-    # await subscription.unsubscribe(node_handles)
+    await asyncio.sleep(10)
+    print("Changing MonitoringMode to Reporting, now we should recv all queued/sampled Notifications!")
+    await subscription.set_monitoring_mode(ua.MonitoringMode.Reporting)
 
-    # Modify
-    # TODO
+
+    await asyncio.sleep(2)
+    await subscription.unsubscribe(node_handles)
 
     print("-----------------------------------------------------")
     await client.disconnect()
