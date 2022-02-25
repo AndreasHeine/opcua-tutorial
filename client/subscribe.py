@@ -12,7 +12,7 @@ In simple words:
 A OPC UA Subscription works like a "Mailbox" which gets emptied in a defined interval by the Client.
 The OPC UA Client sends a publishrequest, the server takes all notifications since the last publishrequest.
 and send them in the publishresponse to the client.
-If there is no Notification in the "Mailbox" the Client will get a "keep-alive" back.
+If there is no Notification in the "Mailbox", after a while the Client will get a "keep-alive" back and then the client will send another publishrequest.
 The OPC UA Client can add "MonitoredItems" to the Subscription which will generate Notifications.
 '''
 
