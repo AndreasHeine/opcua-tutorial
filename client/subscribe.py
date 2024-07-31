@@ -56,8 +56,19 @@ async def main():
         nodes=nodes, # a list of nodes i want to subscribe to
         attr=ua.AttributeIds.Value, # the attribute i am interested in
         queuesize=50, # the queuesize should be bigger then the number of changes within a publishinterval, in this case 50 valuechanges per 1000 ms
-        monitoring=ua.MonitoringMode.Reporting
+        monitoring=ua.MonitoringMode.Reporting,
+        sampling_interval=250 # -1: Inherit from PublishInterval / 0: Eventbased / x: requested samping time (might be revised by the server)
     )
+
+    # manually setting a filter (default in OPC UA Spec. is StatusValue)
+    # await subscription._subscribe(
+    #     nodes,
+    #     ua.AttributeIds.Value,
+    #     ua.DataChangeFilter(ua.DataChangeTrigger.StatusValueTimestamp),
+    #     50,
+    #     ua.MonitoringMode.Reporting,
+    #     250
+    # )
 
     await asyncio.sleep(5)
     await subscription.unsubscribe(node_handles)
