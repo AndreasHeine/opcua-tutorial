@@ -14,8 +14,8 @@ async def main():
     # client.name = "..."
     # client.max_chunkcount = 0 # requested value will be negotiated between client and server
     # client.max_messagesize = 0 # requested value will be negotiated between client and server
-    # client.set_user = "user"
-    # client.set_password = "pw"
+    # client.set_user("user")
+    # client.set_password("pw")
     # await client.set_security_string("Basic256Sha256,SignAndEncrypt,cert.pem,key.pem")
 
     # catching all networkrequests is some times important
