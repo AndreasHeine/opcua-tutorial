@@ -1,0 +1,12 @@
+{
+  "recommendations": [
+    "charliermarsh.ruff",
+    "ms-python.python",
+    "ms-python.mypy-type-checker",
+    "ms-python.debugpy",
+    "ms-azuretools.vscode-docker",
+    "bierner.markdown-mermaid",
+    "tamasfe.even-better-toml"
+  ],
+  "unwantedRecommendations": ["ms-python.black-formatter", "ms-python.flake8", "ms-python.isort"]
+}

@@ -1,1 +1,39 @@
-env
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.env
+.envrc
+
+# Build and quality caches
+build/
+dist/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# OPC UA runtime artifacts: never commit private keys or trust material
+certs/
+trust/
+*.pem
+*.key
+*.der
+*.p12
+*.pfx
+
+# Local scratch databases and address-space shelves
+*.db
+*.sqlite
+.cache/
+shelf/
+
+# Editors and OS noise
+.DS_Store
+Thumbs.db
+*.log

@@ -1,0 +1,195 @@
+[project]
+name = "opcua-tutorial"
+version = "2.0.0"
+description = "Build production-ready OPC UA applications with modern Python and asyncua - a complete, executable tutorial."
+readme = "README.md"
+requires-python = ">=3.13"
+license = "MIT"
+authors = [{ name = "The opcua-tutorial contributors" }]
+keywords = [
+  "asyncua",
+  "industrial-automation",
+  "opc-ua",
+  "opcua",
+  "python",
+  "tutorial",
+]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Typing :: Typed",
+]
+
+dependencies = [
+  "asyncua>=2.1,<3",
+  "pydantic>=2.10,<3",
+  "pyyaml>=6.0,<7",
+]
+
+[project.optional-dependencies]
+historian = [
+  "influxdb3-python>=0.8",
+  "psycopg[binary]>=3.2,<4",
+]
+rest = [
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.30,<1",
+]
+
+[project.scripts]
+opcua-toolkit = "opcua_toolkit.cli:main"
+opcua-tutorial-server = "opcua_toolkit.devserver:main"
+
+[project.urls]
+Documentation = "https://github.com/AndreasHeine/opcua-tutorial/tree/main/docs"
+Repository = "https://github.com/AndreasHeine/opcua-tutorial"
+
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/opcua_toolkit"]
+
+[dependency-groups]
+dev = [
+  "mypy>=1.13",
+  "pytest>=8.3",
+  "pytest-asyncio>=0.25",
+  "pytest-cov>=6",
+  "ruff>=0.9",
+  "types-pyyaml>=6.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["src", "tests", "examples"]
+
+[tool.ruff.lint]
+select = [
+  "A",
+  "ARG",
+  "ASYNC",
+  "B",
+  "C4",
+  "D",
+  "DTZ",
+  "E",
+  "F",
+  "FBT",
+  "I",
+  "ICN",
+  "N",
+  "PERF",
+  "PL",
+  "PT",
+  "PTH",
+  "RET",
+  "RSE",
+  "RUF",
+  "SIM",
+  "SLF",
+  "T20",
+  "TCH",
+  "TRY",
+  "UP",
+  "W",
+]
+ignore = [
+  "COM812", # handled by the formatter
+  "D107", # class docstring documents the constructor arguments instead
+  "D203", # incompatible with google docstring style
+  "D213", # incompatible with google docstring style
+  "EM101", # we keep exception messages inline for readability
+  "EM102",
+  "PLR0911", # dispatch style code is intentionally explicit here
+  "PLR0912", # status-code handling needs many branches by nature
+  "PLR0913", # keyword-only APIs are intentional in this code base
+  "TC001", # toolkit types are imported at runtime on purpose
+  "TC002",
+  "TC003",
+  "TRY003", # toolkit errors carry actionable messages on purpose
+]
+
+[tool.ruff.lint.per-file-ignores]
+"examples/**" = [
+  "T20", # printing is the point of the examples
+  "PLR0915", # a chapter script is one linear story: splitting it into helpers would make it harder to read, not easier
+]
+"src/opcua_toolkit/cli.py" = ["T20"] # the CLI prints by design
+"src/opcua_toolkit/devserver.py" = ["T20"] # the demo server reports its endpoint on stdout
+"tests/**" = [
+  "ARG001", # pytest fixtures are requested for what they set up, not for what the test body uses
+  "ARG002", # a fake has to match the signature of the real API it stands in for
+  "ASYNC109", # a fake mirrors a real API that takes a timeout parameter
+  "D", # test names and docstrings are prose here, not API documentation
+  "FBT001",
+  "FBT002",
+  "PLR2004", # a magic number in an assertion is the point of the assertion
+  "SLF", # a test may inspect the private state it is there to prove
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.isort]
+known-first-party = ["opcua_toolkit"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+# ``src`` is the package; ``examples`` is on the search path too because the
+# chapter scripts are plain scripts that import their own sibling helper
+# (``examples/_support.py``) by module name, exactly as Python runs them.
+mypy_path = ["src", "examples"]
+files = ["src", "tests", "examples"]
+explicit_package_bases = true
+namespace_packages = true
+show_error_codes = true
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+# asyncua ships py.typed, but it annotates the protocol with its own wire types
+# (Int32, UInt32, Double, Boolean, String, DateTime) instead of int, float, bool,
+# str and datetime, and it re-exports names without an __all__. Measured against
+# that, a plain Python value is always the wrong type: every call site becomes an
+# error a reader cannot act on, and the checks stop carrying information. The
+# toolkit's own API is what these checks exist to protect, so the wire boundary is
+# deliberately treated as untyped here. Chapter 28 explains it.
+module = ["asyncua", "asyncua.*"]
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+# Tests are written the pytest way: a fixture is requested by name, and annotating
+# every fixture parameter makes a test louder about plumbing than about the fact it
+# proves. The bodies are still type checked.
+module = ["tests.*"]
+check_untyped_defs = true
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["influxdb3.*", "psycopg.*", "fastapi.*", "uvicorn.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+asyncio_default_fixture_loop_scope = "function"
+asyncio_mode = "auto"
+markers = [
+  "integration: talks to a live asyncua server started by the test fixtures",
+]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["src/opcua_toolkit"]
+
+[tool.coverage.report]
+exclude_lines = ["if TYPE_CHECKING:", "pragma: no cover"]
+show_missing = true

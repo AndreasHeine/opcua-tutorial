@@ -1,0 +1,30 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Tutorial server (demo namespace)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "opcua_toolkit.devserver",
+      "console": "integratedTerminal",
+      "justMyCode": false
+    },
+    {
+      "name": "Current chapter example",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "justMyCode": false
+    },
+    {
+      "name": "Toolkit CLI",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "opcua_toolkit.cli",
+      "args": ["discover", "--endpoint", "opc.tcp://127.0.0.1:48401"],
+      "console": "integratedTerminal",
+      "justMyCode": false
+    }
+  ]
+}
