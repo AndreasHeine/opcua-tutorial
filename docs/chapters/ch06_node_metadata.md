@@ -28,8 +28,8 @@ hardcodes assumptions about them gets a working demo and a failed commissioning.
 | `DataType` | The type of the value, as a NodeId into the type system (`ns=0;i=11` is `Double`) | Chapters 8, 20 |
 | `ValueRank` | `-1` scalar, `0` one-dimensional, `1` one-dimensional array of known length... a `1` here means an array | Chapters 8, 20 |
 | `ArrayDimensions` | The sizes when `ValueRank` is not `-1` | Chapter 8 |
-| `AccessLevel` | What the **node** allows, as a bit field | Chapters 6, 8 |
-| `UserAccessLevel` | What **this session** is allowed, same bit field | Chapters 6, 8, 26 |
+| `AccessLevel` | What the **node** allows: an `AccessLevelType` bit field | Chapters 6, 8 |
+| `UserAccessLevel` | What **this session** is allowed, the same `AccessLevelType` bit field | Chapters 6, 8, 26 |
 | `MinimumSamplingInterval` | This node's floor for sampling, in milliseconds | Chapter 10 |
 | `Historizing` | Whether the server is recording history for this node at all | Chapter 20 |
 | `WriteMask` / `UserWriteMask` | Which attributes may be written, and which you may write | Chapter 26 |
@@ -38,19 +38,48 @@ hardcodes assumptions about them gets a working demo and a failed commissioning.
 
 ### `AccessLevel` is a bit field, not a flag
 
-| Bit | Name | Means |
-| --- | --- | --- |
-| `0x01` | `CurrentRead` | the current value may be read |
-| `0x02` | `CurrentWrite` | the current value may be written |
-| `0x04` | `Annotations` | annotations may be written |
-| `0x08` | `WriteAlways` | may be written even when not `CurrentWrite` |
-| `0x10` | `AutoWrite` | the server writes it itself |
-| `0x20` | `InsertOrgData` | original data is kept on writes |
-| `0x40` | `Historically` | history read/write is allowed |
+`AccessLevel` and `UserAccessLevel` share one data type, `AccessLevelType`, which OPC UA
+Part 3 defines as a subtype of `Byte` with an `OptionSetValues` property - the
+specification's way of saying "one byte, and every bit of it has a name". All eight bits
+are defined there, so a decoder has to know all eight:
 
-So "read only" means `CurrentRead` set and `CurrentWrite` clear - and the toolkit's
-`AccessRights` turns the integer into named facts instead of leaving every caller to do
-bit arithmetic in a hurry.
+| Bit | Mask | Name | What the specification attaches to it |
+| --- | --- | --- | --- |
+| 0 | `0x01` | `CurrentRead` | the current value is readable - and says whether a current value exists at all |
+| 1 | `0x02` | `CurrentWrite` | the current value is writeable - and says whether a current value exists at all |
+| 2 | `0x04` | `HistoryRead` | the history of the value is readable, i.e. the server has history for this node |
+| 3 | `0x08` | `HistoryWrite` | the history of the value is writeable |
+| 4 | `0x10` | `SemanticChange` | set on a *Property* that defines a semantic aspect of its parent Node, and whose value - so that semantic - may change while the server runs |
+| 5 | `0x20` | `StatusWrite` | the current `StatusCode` is writeable: cleared means only `Good` may be written, set means any status code |
+| 6 | `0x40` | `TimestampWrite` | the current `SourceTimestamp` is writeable: cleared means only a null timestamp, set means any timestamp |
+| 7 | `0x80` | `Reserved` | reserved for future use, and **shall always be zero** |
+
+Two things come out of that table.
+
+The first is that history appears twice, in two different attributes. `HistoryRead` /
+`HistoryWrite` (bits 2 and 3) say whether the history of the value is readable or
+writeable on this node - and, per the same table, whether that history is available from
+this server at all. `Historizing` is a separate attribute: it says the server's job
+includes recording this node's value into history. A client that reads one and assumes the
+other asks a server for history it never agreed to keep.
+
+The second is that bits 4 to 6 are not decoration. `StatusWrite` and `TimestampWrite` are
+what decide whether a server accepts a value *together with the status code and timestamp
+you measured* - a data-quality question for a historian or a store-and-forward gateway,
+invisible to a dashboard. `SemanticChange` marks a Property whose value changes what its
+parent node means, which is why it appears on type metadata rather than on plant tags.
+
+Bit 7 has no name to decode. `AccessRights(0x80).describe()` prints `none`: the toolkit
+does not invent a permission for a bit the specification says shall be zero.
+
+So "read only" means `CurrentRead` set and `CurrentWrite` clear - and `AccessLevel == 3`
+is a comparison that works on the two bits everyone uses and misreads the six bits a real
+server may also set. The toolkit's `AccessRights` decodes the named bits once and prints
+them in specification order, so a node with every defined bit set reports:
+
+```text
+CurrentRead|CurrentWrite|HistoryRead|HistoryWrite|SemanticChange|StatusWrite|TimestampWrite
+```
 
 `AccessLevel` and `UserAccessLevel` are **different attributes**: the first is what the
 node permits, the second is what your session is permitted. They are frequently equal
@@ -84,6 +113,13 @@ descriptor.type_definition_text  # 'BaseDataVariableType'
 `NodeNotAccessibleError`, which **keeps the status code** - because "missing" and
 "unreadable" are different problems with different fixes.
 
+`AccessRights` exposes one property per named bit - `current_read`, `current_write`,
+`history_read`, `history_write`, `semantic_change`, `status_write`, `timestamp_write` - so
+the table in section 2 is exactly what the code reads. The demo server reports
+`Temperature` as `CurrentRead|CurrentWrite`, which is the whole report: the five other
+named bits are clear, and that is the fact a client needs before it decides to send its
+own `SourceTimestamp` or `StatusCode` along with a value.
+
 `NodeDescriptor.summary_line()` and `.as_dict()` are what a log line and a JSON payload
 use later (Chapter 28, Chapter 30).
 
@@ -98,10 +134,17 @@ use later (Chapter 28, Chapter 30).
   ns=2;i=1                     Variable  InputArguments           Argument     rank=0   access=CurrentRead
 
 3. the same server holds tags you may write and tags you may not
+  writable     : 33 nodes
+  not writable : 7 nodes -> Vibration, QualityScore_RO, TemperatureHistory_RO, InputArguments, OutputArguments
   InputArguments and OutputArguments are method declaration variables living in the same
   namespace: Chapter 9 reads them as signatures, not as tags
 
 4. everything one node can tell you
+  access level  : CurrentRead|CurrentWrite
+  user access   : CurrentRead|CurrentWrite
+    the five other named bits of the same byte:
+    history_read=False history_write=False semantic_change=False
+    status_write=False timestamp_write=False
   min sampling  : 0.0 ms from this node
     0 does not mean 'as fast as you like': the server-wide MinimumSupportedSampleRate
     is the other floor, and Chapter 10 is where the two meet
@@ -111,13 +154,17 @@ use later (Chapter 28, Chapter 30).
   NodeNotAccessibleError: Node ns=2;s=ThisTagDoesNotExist: BadNodeIdUnknown (0x80340000)
 ```
 
-Three things in that output are worth dwelling on:
+Four things in that output are worth dwelling on:
 
 - **`Setpoint` is `Float`, `Temperature` is `Double`.** They read the same on a screen and
   behave differently on a write. Chapter 8 shows the failure.
 - **Not every variable is a tag.** `InputArguments` and `OutputArguments` are variables too,
   in the same namespace as the plant tags, and they are method declarations. A client that
   says "subscribe to every Variable in ns=2" subscribes to method metadata.
+- **The demo server sets only the two bits everyone looks at.** On `Temperature` the other
+  five named bits are all clear, which is a normal thing for a plain server to publish - and
+  is precisely why a client has to read them instead of assuming that a node you may write a
+  value to is also a node you may write a timestamp or a status code to.
 - **A node-level `MinimumSamplingInterval` of 0 is not a promise of speed.** The server-wide
   `MinimumSupportedSampleRate` (this server publishes 50 ms) is the other floor, and neither
   one is necessarily *enforced* - Chapter 10 measures that.
@@ -132,7 +179,10 @@ uv run opcua-toolkit inspect --endpoint opc.tcp://127.0.0.1:48401 --node "ns=2;s
 
 - **UaExpert**: select `Temperature`, open the *Attributes* tab, and check `DataType`,
   `ValueRank`, `AccessLevel`, `UserAccessLevel`, `MinimumSamplingInterval`, `Historizing`
-  against the example's output. Then select `Vibration` and try
+  against the example's output. Read `AccessLevel` as the named bits from section 2 rather
+  than as one number: the toolkit reports `CurrentRead|CurrentWrite` on `Temperature` and
+  `CurrentRead` on `Vibration`, so the bytes this server publishes are 3 and 1, and every
+  other named bit is clear on it. Then select `Vibration` and try
   *Write Value* - the server's rejection is the fact this chapter is about, and it is
   visible in UaExpert's own error dialog (`BadNotWritable` or `BadUserAccessDenied`
   depending on the server). Compare `TemperatureHistory_RO` (same type as `Temperature`,
@@ -150,7 +200,9 @@ uv run opcua-toolkit inspect --endpoint opc.tcp://127.0.0.1:48401 --node "ns=2;s
 | --- | --- | --- |
 | Assuming every variable is a tag | subscriptions to `InputArguments`, `OutputArguments`, EU-range properties | filter by path and purpose, not by `NodeClass` |
 | Treating `AccessLevel` as what your code decided | a write rejected on a server that was never consulted | read `AccessLevel` *and* `UserAccessLevel` |
-| Comparing `AccessLevel == 3` instead of testing bits | a node with `Historically` or `WriteAlways` set is misclassified | use `AccessRights` |
+| Comparing `AccessLevel == 3` instead of testing bits | a node that also sets `HistoryRead` or `TimestampWrite` is misclassified | test named bits with `AccessRights` |
+| Sending a value with its own timestamp or status code without checking bits 5 and 6 | the client is asking a node to accept quality that node never offered | check `StatusWrite` and `TimestampWrite` first, and decide what your client does when they are clear |
+| Treating `HistoryRead` as "this node is being historized" | a history request aimed at a node whose `Historizing` is false | read both: the bits for rights over history, `Historizing` for what the server records |
 | Assuming `DataType` matches what the UI shows | a `Float` tag that a write sends as `Double` | build the variant from the declared type (Chapter 8) |
 | Ignoring `ValueRank` | an array tag written as a scalar, or read as one | `descriptor.is_array` before building a value |
 | Believing `MinimumSamplingInterval = 0` means "as fast as you like" | a monitored item that never reports | two floors exist; Chapter 10 negotiates |

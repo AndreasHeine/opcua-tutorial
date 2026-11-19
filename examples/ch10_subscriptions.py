@@ -54,11 +54,23 @@ from opcua_toolkit import (
     SubscriptionManager,
     SubscriptionOptions,
     describe_status,
+    format_milliseconds,
+    format_seconds,
 )
 
 #: How many tags this chapter monitors. The number is not the point - showing that
 #: a monitored item is a *server resource* with a cost per item is.
 MONITOR_LIMIT = 30
+
+#: The timers this chapter asks for, and the interval it later asks the server to move
+#: to. The prose below quotes these constants instead of retyping the numbers, so the
+#: intervals the example explains are the intervals the example actually asked for.
+PUBLISHING_MS = 500.0
+SAMPLING_MS = 10.0
+MOVED_PUBLISHING_MS = 1000.0
+
+#: Seconds of quiet observation, used to count how many Publish requests the client made.
+PUBLISH_WINDOW_S = 1.2
 
 
 async def main() -> int:
@@ -88,7 +100,7 @@ async def main() -> int:
             client,
             limits=limits,
             defaults=SubscriptionDefaults(
-                publishing_interval=500.0, sampling_interval=100.0, queue_size=10
+                publishing_interval=PUBLISHING_MS, sampling_interval=100.0, queue_size=10
             ),
         )
 
@@ -103,11 +115,15 @@ async def main() -> int:
             f"MaxMonitoredItemsPerCall published by this server: "
             f"{limits.max_monitored_items_per_call}"
         )
-        bullet(f"MinimumSupportedSampleRate: {limits.min_supported_sample_rate} ms")
+        sample_floor = limits.min_supported_sample_rate
+        bullet(
+            "MinimumSupportedSampleRate: "
+            f"{format_milliseconds(sample_floor) if sample_floor is not None else 'not published'}"
+        )
 
         heading("2. one subscription, many monitored items")
         handles = await manager.subscribe(
-            nodes, options=SubscriptionOptions(sampling_interval=10.0, queue_size=5)
+            nodes, options=SubscriptionOptions(sampling_interval=SAMPLING_MS, queue_size=5)
         )
         bullet(f"subscription id {manager.subscription_id}, items {manager.stats.monitored_items}")
         bullet(f"CreateSubscription calls      : {counters['create_subscription']}")
@@ -117,7 +133,7 @@ async def main() -> int:
         )
         for handle in handles[:4]:
             revised = (
-                f"{handle.revised_sampling_interval}ms"
+                format_milliseconds(handle.revised_sampling_interval)
                 if handle.revised_sampling_interval is not None
                 else "not reported"
             )
@@ -128,11 +144,12 @@ async def main() -> int:
             )
             bullet(
                 f"  {handle.node_id_text:<26} MonitoredItemId={handle.monitored_item_id} "
-                f"asked={handle.requested_sampling_interval}ms revised={revised} queue={queue}"
+                f"asked={format_milliseconds(handle.requested_sampling_interval)} "
+                f"revised={revised} queue={queue}"
             )
         bullet(
-            "sampling interval asked for: 10ms. The answer is 'not reported', and that is "
-            "the honest answer:"
+            f"sampling interval asked for: {format_milliseconds(SAMPLING_MS)}. The answer is "
+            "'not reported', and that is the honest answer:"
         )
         bullet(
             "asyncua's create path returns the MonitoredItemId and throws the rest of the "
@@ -159,13 +176,14 @@ async def main() -> int:
             "ModifySubscription never answer 'no', they answer with revised numbers"
         )
         bullet(
-            "publishing 500ms with items sampled at 10ms means the server looks at the tag "
-            "often and reports in batches: the publishing interval decides how often you hear"
+            f"publishing {format_milliseconds(manager.publishing_interval)} with items sampled "
+            f"at {format_milliseconds(SAMPLING_MS)} means the server looks at the tag often and "
+            "reports in batches: the publishing interval decides how often you hear"
         )
-        if limits.min_supported_sample_rate:
+        if sample_floor is not None:
             bullet(
                 f"this server publishes MinimumSupportedSampleRate="
-                f"{limits.min_supported_sample_rate}ms and does not enforce it"
+                f"{format_milliseconds(sample_floor)} and does not enforce it"
             )
             bullet(
                 "a limit a server advertises and a limit a server applies are different promises"
@@ -181,8 +199,11 @@ async def main() -> int:
 
         heading("5. reporting is client driven: Publish requests")
         counters["publish"] = 0
-        await asyncio.sleep(1.2)
-        bullet(f"Publish requests in 1.2s at a 500ms interval: {counters['publish']}")
+        await asyncio.sleep(PUBLISH_WINDOW_S)
+        bullet(
+            f"Publish requests in {format_seconds(PUBLISH_WINDOW_S)} at a "
+            f"{format_milliseconds(manager.publishing_interval)} interval: {counters['publish']}"
+        )
         bullet(manager.stats.summary())
         bullet(
             "the server queues notifications; nothing arrives until the client asks with "
@@ -214,13 +235,17 @@ async def main() -> int:
         counters["update_subscription"] = 0
         counters["create_subscription"] = 0
         counters["create_monitored_items"] = 0
-        answer = await manager.set_publishing_interval(1000.0)
+        answer = await manager.set_publishing_interval(MOVED_PUBLISHING_MS)
         if answer is not None:
             bullet(answer.summary())
-            bullet(
-                f"the server was asked for 1000ms and answered "
-                f"{answer.revised_publishing_interval}ms"
-            )
+            answered = answer.revised_publishing_interval
+            if answered is None:
+                bullet("this server reported no revised publishing interval at all")
+            else:
+                bullet(
+                    f"the server was asked for {format_milliseconds(MOVED_PUBLISHING_MS)} "
+                    f"and answered {format_milliseconds(answered)}"
+                )
             if answer.rebuilt:
                 bullet("so the manager rebuilt the subscription instead of pretending")
                 bullet(
@@ -244,7 +269,8 @@ async def main() -> int:
                 bullet("the server accepted it: same subscription id, same monitored items")
             bullet(f"ModifySubscription calls: {counters['update_subscription']}")
             bullet(f"monitored items now: {manager.stats.monitored_items}, all Good")
-        bullet(f"publishing interval this client runs with: {manager.publishing_interval} ms")
+        running_with = format_milliseconds(manager.publishing_interval)
+        bullet(f"publishing interval this client runs with: {running_with}")
 
         heading("8. pausing is a server decision with a client guard")
         counters["set_publishing_mode"] = 0

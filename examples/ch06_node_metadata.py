@@ -108,6 +108,13 @@ async def main() -> int:
         bullet(f"value rank    : {focus.value_rank} dimensions={focus.array_dimensions}")
         bullet(f"access level  : {focus.access_level.describe()}")
         bullet(f"user access   : {focus.user_access_level.describe()}")
+        rights = focus.access_level
+        bullet("  the five other named bits of the same byte:")
+        bullet(
+            f"  history_read={rights.history_read} history_write={rights.history_write} "
+            f"semantic_change={rights.semantic_change}"
+        )
+        bullet(f"  status_write={rights.status_write} timestamp_write={rights.timestamp_write}")
         bullet(f"min sampling  : {focus.minimum_sampling_interval} ms from this node")
         bullet(
             "  0 does not mean 'as fast as you like': the server-wide MinimumSupportedSampleRate"
@@ -127,7 +134,7 @@ async def main() -> int:
 
         heading("building block")
         bullet("NodeInspector: inspect / inspect_many -> NodeDescriptor")
-        bullet("AccessRights turns the AccessLevel bit field into named facts")
+        bullet("AccessRights names each AccessLevelType bit the specification gives a meaning to")
         bullet("NodeDescriptor.summary_line and .as_dict render a node for a log or a JSON payload")
     return 0
 

@@ -91,31 +91,47 @@ acts on it - including rebuilding when a server refused to move.
 ### What the example actually prints
 
 ```text
+1. the nodes come from browsing
+  30 variables to monitor
+  MaxMonitoredItemsPerCall published by this server: 10
+  MinimumSupportedSampleRate: 50 ms
+
 2. one subscription, many monitored items
   subscription id 78, items 30
   CreateSubscription calls      : 1
   CreateMonitoredItems calls    : 3 (expected 3)
-    ns=2;s=Temperature         MonitoredItemId=112 asked=10.0ms revised=not reported queue=not reported
-  sampling interval asked for: 10ms. The answer is 'not reported', and that is the honest answer:
+    ns=2;s=Temperature         MonitoredItemId=112 asked=10 ms revised=not reported queue=not reported
+  sampling interval asked for: 10 ms. The answer is 'not reported', and that is the honest answer:
   asyncua's create path returns the MonitoredItemId and throws the rest of the response away
 
 3. what the server actually agreed to
-  ModifySubscription: asked publishing=500.0ms lifetime=10000 keepalive=90; revised publishing=500.0ms lifetime=1000 keepalive=90
+  ModifySubscription: asked publishing=500 ms lifetime=10000 (5000 s) keepalive=90 (45 s); revised publishing=500 ms lifetime=1000 (500 s) keepalive=90 (45 s)
     the server changed: lifetime count 10000 -> 1000
-  a subscription is negotiated, not configured: CreateSubscription and ModifySubscription
-  never answer 'no', they answer with revised numbers
-  this server publishes MinimumSupportedSampleRate=50.0ms and does not enforce it
-  a limit a server advertises and a limit a server applies are different promises
+  ModifySubscription calls used to find that out: 1
+  publishing 500 ms with items sampled at 10 ms means the server looks at the tag often and
+  reports in batches: the publishing interval decides how often you hear
+  this server publishes MinimumSupportedSampleRate=50 ms and does not enforce it
+
+5. reporting is client driven: Publish requests
+  Publish requests in 1.2 s at a 500 ms interval: 2
 
 7. changing the interval is a negotiation, not an assignment
-  ModifySubscription: asked publishing=1000.0ms ... [rebuilt]
+  WARNING opcua_toolkit.subscriptions.manager: ModifySubscription answered 500 ms for a request of 1000 ms: the server kept its own interval, so the subscription is rebuilt instead
+  ModifySubscription: asked publishing=1000 ms lifetime=10000 (10000 s) keepalive=45 (45 s); revised publishing=1000 ms lifetime=1000 (1000 s) keepalive=45 (45 s) [rebuilt]
+  the server was asked for 1000 ms and answered 1000 ms
   rebuilt in 1 CreateSubscription and 3 CreateMonitoredItems calls, every item restored
   the restored items carry the same MonitoredItemIds as the ones that were deleted:
   this server restarts its counter for every subscription
-  so (SubscriptionId, MonitoredItemId) is what identifies a monitored item
-  asyncua's own server ignores ModifySubscription requests and answers with the values
-  from creation: it is not the only server that does
+  publishing interval this client runs with: 1000 ms
 ```
+
+Two things in that output only appear because the toolkit asks a second question. The
+`lifetime=10000 (5000 s)` became `1000 (500 s)` - a cap this server applies and never
+advertises anywhere - and the `[rebuilt]` tag on the last block: `asyncua`'s own server
+answers `ModifySubscription` with the numbers from creation, so a publishing interval of
+1000 ms is *not* what the existing subscription runs with. The manager says so in its log,
+recreates the subscription, and the `1000 ms` on the last line is the interval of the
+subscription it had to build instead.
 
 That `[rebuilt]` line is the chapter's hardest lesson in practice. A server that answers a
 `ModifySubscription` with the values from creation is telling you, in its own way, that it
@@ -125,9 +141,15 @@ and restores every item. A vendor server that answers `BadSubscriptionIdInvalid`
 `ModifySubscription` gets the same treatment for a different reason (Chapter 12).
 
 And the sampling interval of 10 ms against a published `MinimumSupportedSampleRate` of
-50 ms: the demo server accepted it and reported at 10 ms. On a server that enforces its
-published rate the same request comes back revised. Both behaviours are legal, which is
-exactly why the toolkit prints "asked" and "revised" in two columns instead of one.
+50 ms: nothing about that subscription failed - all 30 items came back `Good`, and 54
+notifications arrived in the next 1.2 s window. So this server did not enforce the rate it
+advertises. That is a fact about *this* server, not a rule: a vendor server that does
+enforce its floor answers with revised per-item rates, and the only way to know which one
+you are talking to is the revised numbers on the `CreateMonitoredItems` response. On this
+server those numbers never reached the client at all (`revised=not reported` in the block
+above). **An unmeasured revision is not an accepted revision**: the toolkit reports "not
+reported" rather than echoing what it asked for, because echoing is how a client ends up
+believing its own request.
 
 ## 4. Verification
 
