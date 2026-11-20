@@ -1,0 +1,75 @@
+# Chapter 14's configuration file, and the starting point of the capstone gateway.
+#
+# Two rules this file follows, and both are the chapter's lesson:
+#
+# * every duration says which unit it is in. A bare `90` is not a duration, it is a
+#   number somebody has to guess the meaning of at 3 a.m.;
+# * there is no `endpoint_url` here. Chapter 13 discovers it. A file that writes an
+#   address is a file that goes stale the day the server moves, and a value a file
+#   invented beats a value a server published - which is the wrong precedence.
+#
+# Values this file deliberately does not write are reported by the toolkit as defaults
+# nobody decided, not as invisible. That list is the audit Chapter 14 is about.
+
+client:
+  # The identity a server shows in its own session list. These two are decisions of
+  # this deployment, so `require_decided()` refuses while they are still defaults.
+  application_uri: urn:opcua-tutorial:gateway
+  application_name: opcua-tutorial edge gateway
+  session_name: Chapter 14 - configured gateway
+
+  # 60 s of session, and every subscription this file configures lives inside it.
+  # Chapter 14 refuses a keepalive that would arrive after this session expired.
+  session_timeout: 60s
+  request_timeout: 4s
+  watchdog_interval: 1s
+
+  subscriptions:
+    # Publishes leave every 500 ms; the source is sampled every 100 ms. That pairing
+    # produces about 5 changes per publish, and the queue below holds 10 - so the
+    # queue is wider than one publish, which is the arithmetic a config file should
+    # be checked against instead of a paragraph of advice.
+    publishing_interval: 500ms
+    sampling_interval: 100ms
+    queue_size: 10
+    # Publishing intervals, not seconds: 10 000 of them at 500 ms is 5 000 s. The
+    # toolkit prints both numbers, because the seconds are the ones that decide
+    # whether a reconnect fits inside the lifetime.
+    lifetime_count: 10000
+    max_notifications_per_publish: 10000
+    # max_keepalive_count is deliberately not written: it is derived from the session
+    # timeout this file does write (75% of 60 s at this publishing interval), and the
+    # report shows the derived count and the duration it adds up to.
+
+  retry:
+    # The reconnect policy has to fit inside the subscription lifetime above, or the
+    # server deletes the subscription before this client asks again.
+    max_attempts: 6
+    initial_delay: 0.5s
+    max_delay: 8s
+
+  limits:
+    # An override exists to be more careful than the server, never more generous:
+    # this server publishes max_nodes_per_read=10 and this file asks for 5 per call.
+    # Chapter 14 refuses an override that exceeds what a server publishes.
+    max_nodes_per_read: 5
+
+supervision:
+  # Silence is not damage, so this window triggers a question and never a rebuild.
+  poll_interval: 5s
+  silent_probe_limit: 30s
+
+tags:
+  # Paths, not NodeIds: the namespace index belongs to the server and Chapter 13 looks
+  # it up. A NodeId written here is a promise about a server this file does not know.
+  - name: Temperature
+    path: ProductionLine/Line1/Temperature
+  - name: Pressure
+    path: ProductionLine/Line1/Pressure
+    sampling_interval: 250ms
+  - name: MotorRpm
+    path: ProductionLine/Line1/MotorRpm
+    # A tag kept in the configuration and in every report, monitored item and all,
+    # without being monitored: a disabled tag is a decision somebody can read, and a
+    # deleted line is not. Chapter 14 counts it, and Chapter 15 does not buffer it.
+    monitored: false

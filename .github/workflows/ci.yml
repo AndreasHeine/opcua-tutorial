@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "rework/**"]
+  pull_request:
+  schedule:
+    # A tutorial that depends on a moving upstream library has to find out when the
+    # upstream moved. Weekly on the default branch is enough to catch it, and it is the
+    # only way a chapter that nobody touched can go red.
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint and types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install the locked environment
+        run: uv sync --frozen
+
+      - name: Format check
+        run: uv run ruff format --check .
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Types
+        run: uv run mypy src tests examples
+
+  test:
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install the locked environment
+        run: uv sync --frozen
+
+      # Unit tests first: they take seconds, and a failure there is worth seeing before
+      # anything that needs a server.
+      - name: Unit tests
+        run: uv run pytest tests/unit -q
+
+      # The integration suite starts its own asyncua server on a port the OS picks, so it
+      # needs no vendor product and no network access. It is kept separate from the unit
+      # run because these are the tests a reader will want to run on their own machine.
+      - name: Integration tests
+        run: uv run pytest tests/integration -q --tb=short
+
+  container:
+    name: Demo server image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build the image the docs promise
+        run: docker build -f docker/Dockerfile -t opcua-tutorial-toolkit:ci .
+
+      # Building is not the same as running. This starts the container, waits for its OPC
+      # UA healthcheck (a real GetEndpoints request, not a port probe) and then discovers
+      # the server from a second container on the same network.
+      - name: Start the server and wait for it to answer OPC UA
+        run: |
+          docker compose up -d --build demo-server
+          for attempt in $(seq 1 30); do
+            status=$(docker inspect --format='{{.State.Health.Status}}' "$(docker compose ps -q demo-server)")
+            echo "health: ${status}"
+            if [ "${status}" = "healthy" ]; then exit 0; fi
+            sleep 5
+          done
+          echo "demo server never became healthy" >&2
+          docker compose logs demo-server
+          exit 1
+
+      - name: Discover it from another container
+        run: docker compose --profile tools run --rm --no-deps discover
+
+      - name: Show what went wrong if any of it failed
+        if: failure()
+        run: docker compose logs

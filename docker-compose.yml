@@ -1,0 +1,84 @@
+# Runs the tutorial's demo server the way Chapter 31 runs it: as a container other
+# services and other machines talk to.
+#
+#   docker compose up --build            the server, on 48401
+#   docker compose --profile tools up    the server, plus discovery and a collector
+#   docker compose --profile history up  the server with historization on a volume
+#
+# The published port is the only address a client outside needs. Do not copy an
+# announced URL out of GetEndpoints and connect to that: the announced host is an
+# answer to a question, not a fact about the network (Chapter 4, Chapter 31).
+
+x-toolkit: &toolkit
+  build:
+    context: .
+    dockerfile: docker/Dockerfile
+  image: opcua-tutorial/toolkit:2.0.0
+
+services:
+  demo-server:
+    <<: *toolkit
+    command: ["opcua-tutorial-server", "--host", "0.0.0.0", "--port", "48401"]
+    ports:
+      - "48401:48401"
+    restart: unless-stopped
+
+  # One-shot smoke test from inside the network: proves the server answers a real
+  # GetEndpoints request from another container, which a port check cannot prove.
+  discover:
+    <<: *toolkit
+    profiles: ["tools"]
+    command: ["opcua-toolkit", "discover", "--endpoint", "opc.tcp://demo-server:48401"]
+    depends_on:
+      demo-server:
+        condition: service_healthy
+    restart: "no"
+
+  # The Chapter 10-12 shape: a client that subscribes, prints, and stops.
+  collector:
+    <<: *toolkit
+    profiles: ["tools"]
+    command:
+      [
+        "opcua-toolkit",
+        "subscribe",
+        "--endpoint",
+        "opc.tcp://demo-server:48401",
+        "--node",
+        "ns=2;s=Temperature",
+        "--node",
+        "ns=2;s=Setpoint",
+        "--publishing-interval",
+        "250",
+        "--duration",
+        "30",
+      ]
+    depends_on:
+      demo-server:
+        condition: service_healthy
+    restart: "no"
+
+  # The Chapter 20 variant: same server, with a history database on a volume, so the
+  # data outlives the container.
+  demo-server-historized:
+    <<: *toolkit
+    profiles: ["history"]
+    command:
+      [
+        "opcua-tutorial-server",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "48401",
+        "--historize",
+        "--history-path",
+        "/data/temperature.db",
+      ]
+    ports:
+      - "48402:48401"
+    volumes:
+      - demo-history:/data
+    restart: unless-stopped
+
+volumes:
+  demo-history:

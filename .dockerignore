@@ -1,0 +1,17 @@
+# The image is built from pyproject.toml, uv.lock, README.md and src/. Everything else in
+# the repository is either a development tool or a test, and neither belongs in a runtime
+# image - .venv especially, which would be the wrong platform's binaries.
+.venv/
+.git/
+.github/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.vscode/
+docker/
+examples/
+tests/
+docker-compose.yml
+README.md.bak
+*.log
+*.db
