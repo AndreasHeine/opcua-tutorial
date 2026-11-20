@@ -220,6 +220,37 @@ async def test_a_browse_walk_reports_the_segment_that_broke_the_path(client, lim
     assert "GhostLine" in caught.value.path
 
 
+async def test_a_path_may_be_written_from_the_node_it_starts_at(client, limits) -> None:
+    """``Objects/ProductionLine`` is how the address space is drawn, so it is accepted.
+
+    OPC 10000-4 5.9.4 makes a browse path *relative to its starting node*, which is why
+    ``ProductionLine/Line1`` works from the Objects folder. People write the drawn path,
+    which names the starting node itself, and a tool that rejects the natural spelling
+    teaches the reader that the address space is harder than it is.
+    """
+    explorer = NamespaceExplorer(client, limits=limits)
+    relative = await explorer.find_by_browse_path(["ProductionLine", "Line1"])
+    drawn = await explorer.find_by_browse_path(["Objects", "ProductionLine", "Line1"])
+    assert drawn.node_id_text == relative.node_id_text == "ns=2;s=Line1"
+
+    # A path that says nothing but the starting node's own name is that node.
+    folder = await explorer.find_by_browse_path(["Objects"])
+    assert folder.node_id_text == "ns=0;i=85"
+    assert folder.node_class is ua.NodeClass.Object
+
+
+async def test_a_browse_path_starts_where_it_was_told(client, limits) -> None:
+    """``--node`` is not decoration: it is where the first segment is looked for."""
+    explorer = NamespaceExplorer(client, limits=limits)
+    rooted = await explorer.find_by_browse_path(
+        ["Line1", "Temperature"], root="ns=2;s=ProductionLine"
+    )
+    assert rooted.node_id_text == "ns=2;s=Temperature"
+
+    with pytest.raises(BrowsePathError, match="under ns=2;s=Line1"):
+        await explorer.find_by_browse_path(["ProductionLine", "Line1"], root="ns=2;s=Line1")
+
+
 async def test_describe_node_identifies_a_node_from_one_read(client, limits, service_calls) -> None:
     service_calls.clear()
     described = await NamespaceExplorer(client, limits=limits).describe_node("ns=2;s=Temperature")

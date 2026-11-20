@@ -147,9 +147,15 @@ Start the server, then look at the same address space with someone else's client
 
 ```powershell
 uv run opcua-tutorial-server --host 127.0.0.1 --port 48401
-uv run opcua-toolkit browse --endpoint opc.tcp://127.0.0.1:48401 --path "Objects/ProductionLine"
+uv run opcua-toolkit browse --endpoint opc.tcp://127.0.0.1:48401 --path "ProductionLine/Line1"
 uv run opcua-toolkit inspect --endpoint opc.tcp://127.0.0.1:48401 --node "ns=2;s=Temperature"
 ```
+
+A browse path is relative to the node it starts at, and `browse --path` starts at the
+Objects folder unless `--node` says otherwise. So the path names what is *under* that
+folder: `ProductionLine/Line1`, not `Objects/ProductionLine`. Both spellings work (the
+toolkit accepts a path that names the node it starts at, because that is how the address
+space is drawn), but the first is the one OPC UA itself uses (OPC 10000-4 5.9.4).
 
 In **UaExpert**: connect, open *Address Space*, and check that
 

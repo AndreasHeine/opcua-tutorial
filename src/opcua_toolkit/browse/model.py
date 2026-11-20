@@ -29,6 +29,40 @@ def _to_plain_node_id(value: Any) -> ua.NodeId:
 
 to_plain_node_id = _to_plain_node_id
 
+#: Four letters are enough to read a browse tree, but two node classes share them:
+#: ``ua.NodeClass.Object.name[:4]`` and ``ua.NodeClass.ObjectType.name[:4]`` are both ``obje``,
+#: and "this one is the type, that one is the instance" is exactly what a reader needs to see
+#: when a server authors its own types. So the two classes that would collide are named apart.
+_NODE_CLASS_LABELS: dict[ua.NodeClass, str] = {
+    ua.NodeClass.Object: "obje",
+    ua.NodeClass.Variable: "vari",
+    ua.NodeClass.Method: "meth",
+    ua.NodeClass.ObjectType: "objt",
+    ua.NodeClass.VariableType: "virt",
+    ua.NodeClass.ReferenceType: "reft",
+    ua.NodeClass.DataType: "data",
+    ua.NodeClass.View: "view",
+}
+
+
+def _type_definition_or_none(value: Any) -> ua.NodeId | None:
+    """Treat the empty NodeId as "no TypeDefinition was reported".
+
+    asyncua's server fills ``ReferenceDescription.TypeDefinition`` for the node a browse result
+    points at, and for a node that is itself a type it fills it with namespace 0, identifier 0 -
+    measured on this repository's server: browsing ``MachineType`` through ``HasSubtype`` reports
+    ``ns=0;i=0`` for ``PumpType``, while the same browse reports ``ns=0;i=63`` for the
+    ``Temperature`` declaration and ``ns=2;s=MachineSetPointType`` for ``Pump_01.SetPoint``.
+    Printed as though it were a NodeId, that makes a type look like it has one - which it has,
+    as its supertype through ``HasSubtype``, and a type definition is not what that is.
+    """
+    if value is None:
+        return None
+    node_id = _to_plain_node_id(value)
+    if node_id.NamespaceIndex == 0 and node_id.Identifier == 0:
+        return None
+    return node_id
+
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class NodeRef:
@@ -45,16 +79,13 @@ class NodeRef:
     @classmethod
     def from_description(cls, description: ua.ReferenceDescription) -> NodeRef:
         """Build a NodeRef from a browse result entry."""
-        type_definition = (
-            _to_plain_node_id(description.TypeDefinition) if description.TypeDefinition else None
-        )
         return cls(
             node_id=_to_plain_node_id(description.NodeId),
             browse_name=description.BrowseName,
             # A server may send an empty LocalizedText, whose .Text is None, not "".
             display_name=str(getattr(description.DisplayName, "Text", "") or ""),
             node_class=description.NodeClass,
-            type_definition=type_definition,
+            type_definition=_type_definition_or_none(description.TypeDefinition),
             reference_type=description.ReferenceTypeId,
             is_forward=description.IsForward,
         )
@@ -151,7 +182,9 @@ class BrowseTree:
             if len(lines) >= max_rows:
                 return
             if branch.node is not None:
-                kind = branch.node.node_class.name[:4].lower()
+                kind = _NODE_CLASS_LABELS.get(
+                    branch.node.node_class, branch.node.node_class.name[:4].lower()
+                )
                 type_hint = (
                     f" : {format_node_id(branch.node.type_definition)}"
                     if branch.node.type_definition

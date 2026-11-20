@@ -35,7 +35,7 @@ from asyncua import ua
 
 from opcua_toolkit.errors import format_node_id
 from opcua_toolkit.nodeids import NodeIdLike
-from opcua_toolkit.settings import SubscriptionDefaults
+from opcua_toolkit.settings import SubscriptionDefaults, format_milliseconds, format_seconds
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -279,9 +279,15 @@ class SubscriptionStats:
             self.bad_values += 1
 
     def summary(self) -> str:
-        """One line summary for terminal and CI output."""
+        """One line summary for terminal and CI output.
+
+        The publishing interval carries its unit: this line is printed next to the interval a
+        config file wrote down, and ``publishing=500.0`` next to ``publishing_interval: 500ms``
+        reads like two different numbers.
+        """
         return (
-            f"subscription={self.subscription_id} publishing={self.publishing_interval}ms "
+            f"subscription={self.subscription_id} "
+            f"publishing={format_milliseconds(self.publishing_interval)} "
             f"items={self.monitored_items} failed={self.failed_items} "
             f"notifications={self.notifications} good={self.good_values} "
             f"uncertain={self.uncertain_values} bad={self.bad_values} "
@@ -345,26 +351,79 @@ class SubscriptionRevision:
         return bool(self.revisions)
 
     @property
+    def effective_publishing_interval(self) -> float:
+        """The interval the counts count: the server's if it gave one, else the request."""
+        if self.revised_publishing_interval is not None:
+            return float(self.revised_publishing_interval)
+        return float(self.requested_publishing_interval)
+
+    @property
+    def requested_lifetime_seconds(self) -> float:
+        """What the client asked for, as a duration instead of a count of intervals.
+
+        ``lifetime_count`` means nothing on its own: the same count is 5 seconds or 50
+        minutes depending on the publishing interval it counts. Turning the count into
+        seconds is the only way to notice that a lifetime is shorter than something.
+        """
+        return self.requested_lifetime_count * self.effective_publishing_interval / 1000.0
+
+    @property
+    def revised_lifetime_seconds(self) -> float | None:
+        """How long this subscription survives without a publish request, in seconds.
+
+        This is the number a gateway has to survive: it is how long the server will keep
+        a subscription for a client that stopped publishing, and therefore how long a
+        reconnect may take before a rebuild becomes mandatory rather than optional.
+        """
+        if self.revised_lifetime_count is None:
+            return None
+        return self.revised_lifetime_count * self.effective_publishing_interval / 1000.0
+
+    @property
+    def requested_keepalive_seconds(self) -> float:
+        """How long this client asked the server to stay quiet before saying anything."""
+        return self.requested_max_keepalive_count * self.effective_publishing_interval / 1000.0
+
+    @property
+    def revised_keepalive_seconds(self) -> float | None:
+        """How long this subscription may report nothing before the server sends a keepalive.
+
+        Silence longer than this is not a healthy steady state any more: the server itself
+        decided to speak up, which is the moment a supervisor's question stops being a
+        guess. Compare it with the supervision window in Chapter 12.
+        """
+        if self.revised_max_keepalive_count is None:
+            return None
+        return self.revised_max_keepalive_count * self.effective_publishing_interval / 1000.0
+
+    @property
     def revisions(self) -> tuple[str, ...]:
         """The numbers the server moved, as short sentences for a log line."""
         changed: list[str] = []
-        pairs = (
+        pairs: tuple[tuple[str, Any, Any, Callable[[Any], str]], ...] = (
             (
                 "publishing interval",
                 self.requested_publishing_interval,
                 self.revised_publishing_interval,
+                format_milliseconds,
             ),
-            ("lifetime count", self.requested_lifetime_count, self.revised_lifetime_count),
+            (
+                "lifetime count",
+                self.requested_lifetime_count,
+                self.revised_lifetime_count,
+                _plain_count,
+            ),
             (
                 "keepalive count",
                 self.requested_max_keepalive_count,
                 self.revised_max_keepalive_count,
+                _plain_count,
             ),
         )
-        for name, requested, revised in pairs:
+        for name, requested, revised, render in pairs:
             if revised is None or revised == requested:
                 continue
-            changed.append(f"{name} {requested} -> {revised}")
+            changed.append(f"{name} {render(requested)} -> {render(revised)}")
         return tuple(changed)
 
     def as_dict(self) -> dict[str, Any]:
@@ -377,28 +436,70 @@ class SubscriptionRevision:
             "revised_publishing_interval": self.revised_publishing_interval,
             "revised_lifetime_count": self.revised_lifetime_count,
             "revised_max_keepalive_count": self.revised_max_keepalive_count,
+            "requested_lifetime_seconds": self.requested_lifetime_seconds,
+            "revised_lifetime_seconds": self.revised_lifetime_seconds,
+            "requested_keepalive_seconds": self.requested_keepalive_seconds,
+            "revised_keepalive_seconds": self.revised_keepalive_seconds,
             "rebuilt": self.rebuilt,
         }
 
     def summary(self) -> str:
-        """One line summary for terminal and CI output."""
-        revised = (
-            f"revised publishing={self.revised_publishing_interval}ms "
-            f"lifetime={self.revised_lifetime_count} keepalive={self.revised_max_keepalive_count}"
-            if self.revised_publishing_interval is not None
-            else "revised values not reported by this server"
+        """One line summary for terminal and CI output.
+
+        Every count is followed by the duration it adds up to at the interval that actually
+        runs. ``lifetime=1000`` on its own asks the reader to do the multiplication that
+        decides whether a reconnect fits inside the lifetime, and a summary line is exactly
+        where nobody wants to do arithmetic.
+        """
+        life = self.requested_lifetime_seconds
+        alive = self.requested_keepalive_seconds
+        asked = (
+            f"asked publishing={format_milliseconds(self.requested_publishing_interval)} "
+            f"{_timer('lifetime', self.requested_lifetime_count, life)} "
+            f"{_timer('keepalive', self.requested_max_keepalive_count, alive)}"
         )
-        return (
-            f"{self.service}: asked publishing={self.requested_publishing_interval}ms "
-            f"lifetime={self.requested_lifetime_count} "
-            f"keepalive={self.requested_max_keepalive_count}; "
-            f"{revised}" + (" [rebuilt]" if self.rebuilt else "")
-        )
+        if self.revised_publishing_interval is None:
+            revised = "revised values not reported by this server"
+        else:
+            revised_life = self.revised_lifetime_seconds
+            revised_alive = self.revised_keepalive_seconds
+            revised = (
+                f"revised publishing={format_milliseconds(self.revised_publishing_interval)} "
+                f"{_timer('lifetime', self.revised_lifetime_count, revised_life)} "
+                f"{_timer('keepalive', self.revised_max_keepalive_count, revised_alive)}"
+            )
+        rebuilt = " [rebuilt]" if self.rebuilt else ""
+        return f"{self.service}: {asked}; {revised}{rebuilt}"
 
 
 #: A server is allowed to answer 999.7ms for a request of 1000ms. This is the
 #: tolerance the toolkit treats as "the same interval", not a general comparison.
 _INTERVAL_TOLERANCE_MS = 0.5
+
+
+def _timer(name: str, count: int | None, seconds: float | None) -> str:
+    """One subscription timer as a protocol count, plus the duration that count adds up to.
+
+    A lifetime or keepalive count is meaningless on its own: the same count is 5 seconds or
+    50 minutes depending on the publishing interval it counts. Printing both is what lets a
+    reader compare a subscription's lifetime with a reconnect policy without doing the
+    multiplication in their head.
+    """
+    if count is None:
+        return f"{name}=not reported"
+    if seconds is None:
+        return f"{name}={count}"
+    return f"{name}={count} ({format_seconds(seconds)})"
+
+
+def _plain_count(value: Any) -> str:
+    """A count that is already a count, for the one place a revision sentence names it.
+
+    A lifetime count and a keepalive count are counted in publishing intervals, and the
+    sentences they appear in say so; the publishing interval is the one number in the same
+    comparison that is a duration.
+    """
+    return str(value)
 
 
 __all__ = [

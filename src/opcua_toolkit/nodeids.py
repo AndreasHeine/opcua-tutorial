@@ -77,4 +77,21 @@ def node_ids_equal(left: NodeIdLike, right: NodeIdLike) -> bool:
     return bool(to_nodeid(left) == to_nodeid(right))
 
 
-__all__ = ["NodeIdLike", "node_ids_equal", "to_nodeid", "to_nodeid_list"]
+def looks_like_node_id_text(value: object) -> bool:
+    """Whether a string is NodeId text (``ns=2;s=Temperature``) rather than a bare name.
+
+    Modules that accept *either* a BrowseName or a NodeId need this decision before they
+    can pick which one they are looking at, and a bare name like ``PumpType`` must not be
+    fed to :func:`to_nodeid` - it would be rejected as an invalid NodeId instead of being
+    recognised as the name of something this module authored itself.
+    """
+    return isinstance(value, str) and value.strip().startswith(_NODE_ID_PREFIXES)
+
+
+__all__ = [
+    "NodeIdLike",
+    "looks_like_node_id_text",
+    "node_ids_equal",
+    "to_nodeid",
+    "to_nodeid_list",
+]

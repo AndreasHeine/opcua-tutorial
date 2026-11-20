@@ -222,16 +222,31 @@ class NamespaceExplorer:
         already know the namespaces, use
         :meth:`resolve_path_with_translate`, which needs a single roundtrip.
 
+        A path is relative to the node it starts at (OPC 10000-4 5.9.4), but people
+        write paths the way the address space is drawn, which means *naming the node
+        they start at*: ``Objects/ProductionLine`` from the Objects folder. Both
+        spellings are accepted. The first segment may be the BrowseName of the
+        starting node, in which case the walk begins at that node instead of below
+        it, and a path that says nothing but the starting node's own name resolves
+        to the starting node.
+
         Raises:
             BrowsePathError: A segment of the path does not exist.
         """
         if not path:
             raise BrowsePathError("Empty browse path")
-        current = to_nodeid(root) if root is not None else ua.NodeId(ua.ObjectIds.ObjectsFolder, 0)
+        start = to_nodeid(root) if root is not None else ua.NodeId(ua.ObjectIds.ObjectsFolder, 0)
+        current = start
         resolved: NodeRef | None = None
         for index, segment in enumerate(path):
             children = await self.children(current)
             match = next((child for child in children if child.name == segment), None)
+            if match is None and index == 0:
+                spelled = await self.describe_node(current)
+                if spelled.name == segment:
+                    # The path is written from the starting node, not below it.
+                    resolved = spelled
+                    continue
             if match is None:
                 raise BrowsePathError(
                     f"No node named {segment!r} under {format_node_id(current)} "
@@ -240,7 +255,8 @@ class NamespaceExplorer:
                 )
             current = match.node_id
             resolved = match
-        assert resolved is not None
+        if resolved is None:
+            raise BrowsePathError(f"Path {list(path)!r} resolved to nothing", path=tuple(path))
         return resolved
 
     async def resolve_path_with_translate(

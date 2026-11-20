@@ -32,8 +32,19 @@ docstrings, so a script, a test and a chapter page all say the same number.
 | Chapter | Example | What it proves |
 | --- | --- | --- |
 | 13 | `ch13_discovery.py` | Ask the server before you configure the client |
+| 14 | `ch14_configuration.py`, `gateway.yaml` | A configuration file that refuses its own contradictions, reviewed before anything connects |
+| 15 | `ch15_buffering.py` | Which of the three queues between a tag and a historian can tell you what it threw away |
 
-Chapters 14 and beyond are added as their parts are built; the numbering above is
+## Part 5 - building a server (Chapters 16-20)
+
+| Chapter | Example | What it proves |
+| --- | --- | --- |
+| 16 | `ch16_authored_address_space.py` | A model authored through `AddNodes` on a client session, then read back by a second session that was told nothing about it |
+
+`gateway.yaml` is not an example: it is the tutorial's deployment file, and the capstone
+gateway starts from it. The chapter that explains it is Chapter 14.
+
+Chapters 17 and beyond are added as their parts are built; the numbering above is
 the numbering those files will use.
 
 ## Running one

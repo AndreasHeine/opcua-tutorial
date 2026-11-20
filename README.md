@@ -13,8 +13,9 @@ no code that "should" run.
 
 ```
 src/opcua_toolkit/   the toolkit: browse, read, write, methods, subscriptions,
-                     supervision, discovery, limits, health, settings, demo server, CLI
-examples/            one runnable script per chapter (ch04 … ch13 today)
+                     supervision, discovery, limits, health, settings, config, buffer, spool,
+                     server authoring, demo server, CLI
+examples/            one runnable script per chapter (ch04 … ch16 today), plus gateway.yaml
 tests/               unit tests plus integration tests against a live asyncua server
 docs/                the chapters, the roadmap, and how to verify with UaExpert or Prosys
 docker/ + compose    the demo server as a container
@@ -44,6 +45,7 @@ Start the demo server on a fixed address and point a real client at it:
 uv run opcua-tutorial-server --host 127.0.0.1 --port 48401
 uv run opcua-toolkit discover --endpoint opc.tcp://127.0.0.1:48401
 uv run opcua-toolkit subscribe --endpoint opc.tcp://127.0.0.1:48401 --node "ns=2;s=Temperature"
+uv run opcua-toolkit config --file examples/gateway.yaml --check-server opc.tcp://127.0.0.1:48401
 ```
 
 Start it in a container instead:
@@ -84,6 +86,9 @@ facts.
 | `subscriptions` | Subscriptions, monitored items, the server's revised numbers, dispatch to handlers |
 | `resilience` | Supervision: what a failed probe means, when to rebuild a subscription, when to leave it alone |
 | `settings` | Typed configuration that refuses the mistakes a config file makes |
+| `config` | One application's configuration as types: layers, provenance, and a review that refuses contradictions and reports weaknesses |
+| `buffer` / `spool` | The bounded points between a tag and a sink: a buffer that names every record it dropped, and a file that survives the restart |
+| `server` | Authoring an address space over a client session (`ObjectTypeSpec` / `ComponentSpec` / `AddressSpaceAuthor`), and reading back what a server promises about its own types (`AddressSpaceReader`) |
 | `devserver` | The demo server, with the limits and refusals a tutorial needs |
 | `cli` | `opcua-toolkit discover / browse / inspect / read / write / call / subscribe` |
 
@@ -95,13 +100,21 @@ numbers as the enforced ones writes an application that works against the tutori
 demo server and fails against a real one. Chapters 7, 8, 10 and 12 are four
 different versions of that one sentence.
 
+Chapter 16 turns the same idea to the other side of the wire: a server also
+*publishes a model* - the types it declares and the parts every instance of them
+must carry - and a client that never reads that promise cannot tell a model from a
+pile of variables. The demo server's own address space is exactly that pile until a
+chapter asks it to author a model, and Chapter 16 is where that request gets written
+down.
+
 ## Status
 
-Chapters 1-13 are complete: the toolkit core, thirteen chapter examples, the unit
-and integration suites, the container setup and CI. Parts 4-8 (chapters 14-31)
-build on top of them - generic application shapes, servers, companion
-specifications, security, logging, testing, architecture - and end with the edge
-gateway. [docs/ROADMAP.md](docs/ROADMAP.md) lists what exists and what is next.
+Chapters 1-16 are complete: the toolkit core, thirteen chapter examples, the unit
+and integration suites, the container setup and CI. Parts 1-4 and chapter 16 of Part 5
+are built, and the rest of Parts 5-8 (chapters 17-31) build on what exists now - the
+rest of the server side, companion specifications, security, logging, testing,
+architecture - and end with the edge gateway.
+[docs/ROADMAP.md](docs/ROADMAP.md) lists what exists and what is next.
 
 ## Origin and licence
 

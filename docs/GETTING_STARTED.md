@@ -30,7 +30,7 @@ two console scripts become available:
 
 | Script | Entry point | What it does |
 | --- | --- | --- |
-| `opcua-toolkit` | `opcua_toolkit.cli:main` | `discover`, `browse`, `inspect`, `read`, `write`, `call`, `subscribe` |
+| `opcua-toolkit` | `opcua_toolkit.cli:main` | `discover`, `browse`, `inspect`, `read`, `write`, `call`, `subscribe`, `config` |
 | `opcua-tutorial-server` | `opcua_toolkit.devserver:main` | runs the tutorial's demo server |
 
 Optional extras for later parts: `uv sync --extra rest` (Chapter 30) and
@@ -90,6 +90,7 @@ uv run opcua-toolkit write --endpoint opc.tcp://127.0.0.1:48401 --set "ns=2;s=Re
 uv run opcua-toolkit call --endpoint opc.tcp://127.0.0.1:48401 --root "ns=2;s=Line1" --list-methods
 uv run opcua-toolkit subscribe --endpoint opc.tcp://127.0.0.1:48401 --node "ns=2;s=Temperature" --duration 10
 uv run opcua-toolkit discover --json --endpoint opc.tcp://127.0.0.1:48401
+uv run opcua-toolkit config --file examples/gateway.yaml --check-server opc.tcp://127.0.0.1:48401
 ```
 
 `--json` on stdout and one line of error on stderr is the CLI's contract: it is meant to be
@@ -178,7 +179,9 @@ No extension other than the Python extension and Ruff is needed. The recommended
 ## 10. Where to go next
 
 1. Read [chapters 1-3](chapters/README.md) in order - they are short and make the rest readable.
-2. Run chapters 4-13 with `--demo`, then run chapters 5, 7 and 10 again with
-   `--endpoint` against Prosys or a vendor server.
+2. Run chapters 4-16 with `--demo`, then run chapters 5, 7, 10 and 16 again with
+   `--endpoint` against Prosys or a vendor server. Chapter 16 is the interesting one to run that
+   way: its authoring half refuses to write into somebody else's server and prints the reason,
+   while its reading half works unchanged.
 3. Skim [docs/ROADMAP.md](ROADMAP.md) to see what the parts you have not built yet are for.
 4. If you came from the old version of this repository, read [MIGRATION.md](../MIGRATION.md).

@@ -12,8 +12,8 @@ and the capstone reuses all of them.
 | 1 | 1-3 | Foundations: what OPC UA is, how an address space works, how to read the spec | written |
 | 2 | 4-9 | Reading a server: connect, browse, inspect, read, write, call | **built and tested** |
 | 3 | 10-12 | Keeping data coming: subscriptions, dispatch, supervision | **built and tested** |
-| 4 | 13-15 | Application shapes: discovery-driven config, typed settings, queues | 13 built; 14-15 next |
-| 5 | 16-20 | Building a server: address space, data quality, methods, events, history | planned |
+| 4 | 13-15 | Application shapes: discovery-driven config, typed settings, queues | **built and tested** |
+| 5 | 16-20 | Building a server: address space, data quality, methods, events, history | **16 built and tested**, 17-20 planned |
 | 6 | 21-24 | Companion specifications: reading one, applying one, surviving two | planned |
 | 7 | 25-27 | Security: policies and certificates, users and roles, deployment | planned |
 | 8 | 28-31 | Production concerns: logging, testing, interfaces out, architecture | planned |
@@ -58,18 +58,23 @@ Building blocks: `subscriptions` (manager, model, dispatch), `resilience`.
 | Chapter | Title | The one thing to understand | Status |
 | --- | --- | --- | --- |
 | 13 | Discovery-driven configuration | Ask the server what it offers, then build the client from that answer instead of from a template | built: `examples/ch13_discovery.py` |
-| 14 | Configuration that refuses mistakes | Typed settings, validated bounds, and the difference between a default and a decision | next |
-| 15 | Queues and buffering | A gateway that stops collecting must not stop storing: what to buffer, what to drop, and what to admit to | next |
+| 14 | Configuration that refuses mistakes | Typed settings, validated bounds, and the difference between a default and a decision | built: `examples/ch14_configuration.py`, `examples/gateway.yaml` |
+| 15 | Queues and buffering | A gateway that stops collecting must not stop storing: what to buffer, what to drop, and what to admit to | built: `examples/ch15_buffering.py` |
+
+Building blocks: `discovery` (Chapter 13), `config` (Chapter 14), `buffer` and `spool`
+(Chapter 15).
 
 ## Part 5 - Building a server
 
-| Chapter | Title | The one thing to understand |
-| --- | --- | --- |
-| 16 | An address space you authored | Object types, variable types, and why a server that only has base nodes is unreadable |
-| 17 | Data quality and timestamps | StatusCode, SourceTimestamp and ServerTimestamp are the data; a value without them is an assumption |
-| 18 | Methods and node management | Server-side behaviour, and the difference between a node that exists and one a client may add |
-| 19 | Events | A monitored item on an event source is a different service path than a data change, with its own filter and select clause |
-| 20 | History | What historization on the server gives you, what it does not, and how to build a historian of your own |
+| Chapter | Title | The one thing to understand | Status |
+| --- | --- | --- | --- |
+| 16 | An address space you authored | Object types, variable types, and why a server that only has base nodes is unreadable | built: `examples/ch16_authored_address_space.py` |
+| 17 | Data quality and timestamps | StatusCode, SourceTimestamp and ServerTimestamp are the data; a value without them is an assumption | planned |
+| 18 | Methods and node management | Server-side behaviour, and the difference between a node that exists and one a client may add | planned |
+| 19 | Events | A monitored item on an event source is a different service path than a data change, with its own filter and select clause | planned |
+| 20 | History | What historization on the server gives you, what it does not, and how to build a historian of your own | planned |
+
+Building blocks: `server` (`model`, `reader`, `authoring`) (Chapter 16).
 
 ## Part 6 - Companion specifications
 

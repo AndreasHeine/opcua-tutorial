@@ -40,6 +40,22 @@ def make_reference(
     return description
 
 
+def ref_for(
+    name: str,
+    node_class: ua.NodeClass,
+    type_definition: ua.NodeId | None = None,
+) -> NodeRef:
+    """One browse entry for a node of that name and NodeClass."""
+    return NodeRef.from_description(
+        make_reference(
+            identifier=name,
+            name=name,
+            node_class=node_class,
+            type_definition=type_definition,
+        )
+    )
+
+
 def test_node_ref_carries_everything_a_client_needs_before_reading() -> None:
     ref = NodeRef.from_description(make_reference())
     assert ref.name == "Temperature"
@@ -124,6 +140,39 @@ def test_render_shows_indentation_and_node_kind() -> None:
     assert lines[0].startswith("ProductionLine [obje] ns=2;s=ProductionLine")
     assert "  Line1 [obje]" in rendered
     assert "    Temperature [vari]" in rendered
+
+
+def test_a_type_and_an_instance_are_not_printed_with_the_same_label() -> None:
+    """Chapter 16 is exactly this distinction, so a browse tree has to print it.
+
+    ``ua.NodeClass.ObjectType.name[:4]`` and ``ua.NodeClass.Object.name[:4]`` are both ``obje``,
+    and ``ua.NodeClass.VariableType.name[:4]`` is ``vari`` - the label a Variable already has.
+    """
+    tree = BrowseTree(
+        node=ref_for("MachineType", ua.NodeClass.ObjectType, ua.NodeId(0, 0)),
+        children=[
+            BrowseTree(node=ref_for("PumpType", ua.NodeClass.ObjectType, ua.NodeId(0, 0))),
+            BrowseTree(node=ref_for("Pump_01", ua.NodeClass.Object, ua.NodeId("PumpType", 2))),
+            BrowseTree(node=ref_for("MachineSetPointType", ua.NodeClass.VariableType)),
+        ],
+    )
+    rendered = tree.render()
+    assert "MachineType [objt] ns=2;s=MachineType" in rendered
+    assert "  PumpType [objt] ns=2;s=PumpType" in rendered
+    assert "  Pump_01 [obje] ns=2;s=Pump_01 : ns=2;s=PumpType" in rendered
+    assert "  MachineSetPointType [virt] ns=2;s=MachineSetPointType" in rendered
+    assert "ns=0;i=0" not in rendered
+
+
+def test_an_empty_type_definition_is_reported_as_none() -> None:
+    """The demo server reports namespace 0 identifier 0 for a type node, which is not a node."""
+    ref = ref_for("PumpType", ua.NodeClass.ObjectType, ua.NodeId(0, 0))
+    assert ref.type_definition is None
+    assert ref.as_dict()["type_definition"] is None
+
+    typed = ref_for("SetPoint", ua.NodeClass.Variable, ua.NodeId("MachineSetPointType", 2))
+    assert typed.type_definition == ua.NodeId("MachineSetPointType", 2)
+    assert typed.as_dict()["type_definition"] == "ns=2;s=MachineSetPointType"
 
 
 def test_render_truncates_instead_of_printing_a_whole_factory() -> None:

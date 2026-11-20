@@ -18,6 +18,7 @@ from asyncua import ua
 from asyncua.client.client import Client
 
 from opcua_toolkit.errors import OperationLimitError
+from opcua_toolkit.settings import format_milliseconds
 from opcua_toolkit.values import unwrap
 
 #: Fallbacks used when a server does not report a limit. OPC 10000-5 makes every
@@ -174,7 +175,9 @@ class OperationLimits:
         """Multi line summary used by ``opcua-toolkit discover``."""
         lines = [f"{name}: {getattr(self, name)}" for name in sorted(_DEFAULTS)]
         if self.min_supported_sample_rate is not None:
-            lines.append(f"min_supported_sample_rate: {self.min_supported_sample_rate} ms")
+            lines.append(
+                f"min_supported_sample_rate: {format_milliseconds(self.min_supported_sample_rate)}"
+            )
         missing = self.unresolved()
         if missing:
             lines.append(f"not published by server (assumed): {', '.join(missing)}")

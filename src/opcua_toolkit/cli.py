@@ -11,6 +11,8 @@ behaviour, you can confirm it here without writing a script first::
     uv run opcua-toolkit write --endpoint opc.tcp://127.0.0.1:48401 --set "ns=2;s=Setpoint=22.5"
     uv run opcua-toolkit call --endpoint opc.tcp://127.0.0.1:48401 --list-methods
     uv run opcua-toolkit subscribe --endpoint opc.tcp://127.0.0.1:48401 --duration 5
+    uv run opcua-toolkit config --file examples/gateway.yaml
+    uv run opcua-toolkit config --file examples/gateway.yaml --check-server opc.tcp://127.0.0.1:48401
 
 Design notes:
 
@@ -37,8 +39,9 @@ from asyncua import ua
 from asyncua.ua.uaerrors import UaError
 
 from opcua_toolkit.browse import NamespaceExplorer
+from opcua_toolkit.config import discovery_settings, load_config
 from opcua_toolkit.diagnostics import configure_logging
-from opcua_toolkit.discovery import EndpointDiscovery
+from opcua_toolkit.discovery import EndpointDiscovery, ServerProfile
 from opcua_toolkit.errors import OpcuaToolkitError, format_node_id
 from opcua_toolkit.inspector import NodeInspector, format_table
 from opcua_toolkit.limits import OperationLimits
@@ -50,6 +53,7 @@ from opcua_toolkit.settings import (
     RetryPolicy,
     SecuritySettings,
     SubscriptionDefaults,
+    format_milliseconds,
 )
 from opcua_toolkit.subscriptions import DataChangeRecord, SubscriptionManager
 from opcua_toolkit.values import format_value
@@ -99,6 +103,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_write(subparsers, common)
     _add_call(subparsers, common)
     _add_subscribe(subparsers, common)
+    _add_config(subparsers)
     return parser
 
 
@@ -123,7 +128,10 @@ def _add_browse(
         "--depth", type=int, default=2, help="levels below the root (-1 = unlimited)"
     )
     parser.add_argument("--max-nodes", type=int, default=2_000, help="hard stop for huge servers")
-    parser.add_argument("--path", help="resolve a dotted path such as ProductionLine/Line1")
+    parser.add_argument(
+        "--path",
+        help="resolve a slash path such as ProductionLine/Line1, starting at --node",
+    )
     parser.add_argument("--flat", action="store_true", help="print a flat list instead of a tree")
 
 
@@ -205,6 +213,34 @@ def _add_subscribe(
     )
 
 
+def _add_config(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    """The one subcommand that reads a configuration file instead of command line flags.
+
+    Deliberately not built from ``common``: ``config`` is the Chapter 14 command, and the
+    point of Chapter 14 is that the file is where the settings live. It takes the endpoint
+    of a server to *check against*, not the endpoint to connect to as the task.
+    """
+    parser = subparsers.add_parser(
+        "config", help="resolve and review a configuration file before anything connects"
+    )
+    parser.add_argument("--file", type=Path, help="YAML configuration file to load")
+    parser.add_argument(
+        "--check-server",
+        metavar="ENDPOINT",
+        help="opc.tcp:// URL of a server to discover and check this file against",
+    )
+    parser.add_argument(
+        "--require-decided",
+        action="append",
+        default=[],
+        metavar="SETTING",
+        help="setting path this deployment must have written (repeatable)",
+    )
+    parser.add_argument("--log-level", default="WARNING", help="application log level")
+    parser.add_argument("--json-logs", action="store_true", help="emit JSON log lines")
+    parser.add_argument("--json", action="store_true", help="print machine readable results")
+
+
 def settings_from_args(args: argparse.Namespace) -> ClientSettings:
     """Build the chapter-identical client settings from CLI arguments."""
     return ClientSettings(
@@ -261,7 +297,7 @@ async def _browse(args: argparse.Namespace) -> int:
             print(f"  [{index}] {uri}")
         if args.path:
             segments = [segment for segment in args.path.replace(".", "/").split("/") if segment]
-            resolved = await explorer.find_by_browse_path(segments)
+            resolved = await explorer.find_by_browse_path(segments, root=to_nodeid(args.node))
             print(f"resolved {args.path} -> {format_node_id(resolved.node_id)}")
             print(f"  browse name: {resolved.name}")
             print(f"  node class : {resolved.node_class.name}")
@@ -425,7 +461,8 @@ async def _subscribe(args: argparse.Namespace) -> int:
         for handle in handles:
             print(
                 f"  {handle.node_id_text:<28} item={handle.monitored_item_id} "
-                f"sampling={handle.requested_sampling_interval}ms queue={handle.options.queue_size}"
+                f"sampling={format_milliseconds(handle.requested_sampling_interval)} "
+                f"queue={handle.options.queue_size}"
             )
         await asyncio.sleep(args.duration)
         stats = manager.stats
@@ -433,6 +470,50 @@ async def _subscribe(args: argparse.Namespace) -> int:
         print(f"subscription stats: {stats.summary()}")
         await manager.stop()
     return EXIT_OK if stats.errors == 0 else EXIT_ERROR
+
+
+async def _config(args: argparse.Namespace) -> int:
+    """Resolve a configuration file, review it, and only then ask a server about it.
+
+    The order is the whole chapter: the file is read and reviewed before anything connects,
+    and a running server is asked whether this configuration is possible on it afterwards.
+    A deployment that connects first and argues with the server afterwards has already left
+    a session open on a configuration it had not checked.
+
+    A refusal is not printed as data: :meth:`~opcua_toolkit.ConfigReview.require_startable`
+    raises, ``main`` turns it into the CLI's one ``error:`` sentence, and the exit code is
+    non-zero. A configuration that cannot work is a failed command, not a report.
+    """
+    profile: ServerProfile | None = None
+    if args.check_server:
+        discovery = EndpointDiscovery(
+            ClientSettings(
+                endpoint_url=args.check_server,
+                session_name="Chapter 14 - configuration check",
+            )
+        )
+        profile = await discovery.profile()
+    resolved = load_config(args.file, derived=discovery_settings(profile) if profile else None)
+    review = resolved.check_server(profile) if profile is not None else resolved.review()
+
+    if args.json:
+        _emit(
+            {
+                "sources": list(resolved.sources),
+                "settings": [value.as_dict() for value in resolved.resolved_values()],
+                "review": review.as_dict(),
+            }
+        )
+    else:
+        for line in resolved.describe():
+            print(line)
+        print()
+        for line in review.describe():
+            print(line)
+    if args.require_decided:
+        resolved.require_decided(*args.require_decided)
+    review.require_startable()
+    return EXIT_OK
 
 
 async def _node_arguments(args: argparse.Namespace, explorer: NamespaceExplorer) -> list[ua.NodeId]:
@@ -524,6 +605,7 @@ _COMMANDS: dict[str, CommandHandler] = {
     "write": _write,
     "call": _call,
     "subscribe": _subscribe,
+    "config": _config,
 }
 
 

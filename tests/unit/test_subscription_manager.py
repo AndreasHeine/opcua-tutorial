@@ -38,6 +38,7 @@ from asyncua.common.subscription import (
 from asyncua.ua.uaerrors import BadSubscriptionIdInvalid
 
 from opcua_toolkit.nodeids import to_nodeid
+from opcua_toolkit.settings import SubscriptionDefaults
 from opcua_toolkit.subscriptions import (
     DEFAULT_SUBSCRIPTION_KEY,
     DataChangeRecord,
@@ -63,7 +64,12 @@ class FakeSubscription:
     manager must tell them apart.
     """
 
-    def __init__(self, client: FakeClient, subscription_id: int) -> None:
+    def __init__(
+        self,
+        client: FakeClient,
+        subscription_id: int,
+        requested: ua.CreateSubscriptionParameters,
+    ) -> None:
         self.client = client
         self.subscription_id = subscription_id
         self.is_deleted = False
@@ -77,25 +83,16 @@ class FakeSubscription:
         self.delete_calls: list[list[int]] = []
         self.modifies: list[ua.ModifySubscriptionParameters] = []
         self._next_item_id = 101
-        # What the client asked for, in the shape a real client keeps: asyncua stores
+        # What the client asked for, in the shape a real client keeps it: asyncua stores
         # the create parameters here and overwrites them with whatever a later
         # ModifySubscription sent, which is why the manager keeps its own record.
-        self.parameters = ua.CreateSubscriptionParameters(
-            RequestedPublishingInterval=client.periods[-1],
-            RequestedLifetimeCount=10_000,
-            RequestedMaxKeepAliveCount=100,
-            MaxNotificationsPerPublish=10_000,
-            PublishingEnabled=client.publishing_flags[-1],
-            Priority=0,
-        )
+        self.parameters = requested
         # What the server says it is *using*. A create echoes the interval and clamps
         # the two counts to its own caps, which is what an OPC UA server does.
-        self.revised_publishing_interval = client.periods[-1]
-        self.revised_lifetime_count = min(
-            self.parameters.RequestedLifetimeCount, client.lifetime_cap
-        )
+        self.revised_publishing_interval = requested.RequestedPublishingInterval
+        self.revised_lifetime_count = min(requested.RequestedLifetimeCount, client.lifetime_cap)
         self.revised_keepalive_count = min(
-            self.parameters.RequestedMaxKeepAliveCount, client.keepalive_cap
+            requested.RequestedMaxKeepAliveCount, client.keepalive_cap
         )
 
     @property
@@ -177,6 +174,11 @@ class FakeClient:
     The caps mirror asyncua's own server defaults (lifetime 15 000, keepalive 5 000),
     so a test has to lower a cap on purpose to see a revision happen - which is the
     same situation a client meets in the field, just with the numbers reversed.
+
+    ``session_timeout`` is in milliseconds, the unit asyncua's ``Client`` keeps it in,
+    because a subscription's keepalive is derived from it. The default is the toolkit's
+    own 60 s: a manager built from default settings asks for a keepalive that this
+    server's caps do not touch, so a revision only shows up when a test asks for one.
     """
 
     def __init__(
@@ -185,16 +187,19 @@ class FakeClient:
         honours_modify: bool = True,
         lifetime_cap: int = 15_000,
         keepalive_cap: int = 5_000,
+        session_timeout: float = 60_000,
     ) -> None:
         self.events: list[DataChangeEvent] = []
         self.subscriptions: list[FakeSubscription] = []
         self.publishing_flags: list[bool] = []
         self.periods: list[float] = []
+        self.requests: list[ua.CreateSubscriptionParameters] = []
         self.queue_sizes: list[int] = []
         self.overflow: OverflowPolicy | None = None
         self.honours_modify = honours_modify
         self.lifetime_cap = lifetime_cap
         self.keepalive_cap = keepalive_cap
+        self.session_timeout = session_timeout
         # Set this to make the server answer a publish with an error instead of a
         # notification: the way a client finds out the subscription is gone.
         self.publish_error: BaseException | None = None
@@ -214,25 +219,64 @@ class FakeClient:
 
     async def create_subscription(
         self,
-        *,
-        period: float,
+        period: ua.CreateSubscriptionParameters | float,
         handler: Any = None,
         publishing: bool = True,
+        *,
         queue_maxsize: int = 1_000,
         overflow: OverflowPolicy = OverflowPolicy.DROP_OLDEST,
     ) -> FakeSubscription:
+        """``CreateSubscription`` with asyncua's own signature, params object included.
+
+        The toolkit sends the request it means instead of a bare interval and letting the
+        client library invent the rest, so the fake has to accept that request and keep it
+        the way a real client keeps it on ``subscription.parameters``. The float branch is
+        kept because that is what a client that asks for nothing sends, and a test that
+        wants to compare the two has to be able to say both.
+        """
         if self.create_gate is not None:
             await self.create_gate.wait()
-        self.publishing_flags.append(publishing)
-        self.periods.append(period)
+        parameters = _create_parameters(period, publishing, self)
+        self.requests.append(parameters)
+        self.periods.append(parameters.RequestedPublishingInterval)
+        self.publishing_flags.append(parameters.PublishingEnabled)
         self.queue_sizes.append(queue_maxsize)
         self.overflow = overflow
-        subscription = FakeSubscription(self, 77 + len(self.subscriptions))
+        subscription = FakeSubscription(self, 77 + len(self.subscriptions), parameters)
         self.subscriptions.append(subscription)
         return subscription
 
+    def get_keepalive_count(self, period: float) -> int:
+        """asyncua's own derivation, so the float branch means what the real one means."""
+        if not period:
+            return 1
+        return int((self.session_timeout / period) * 0.75)
+
     def get_node(self, nodeid: ua.NodeId) -> Node:
         return _node(nodeid)
+
+
+def _create_parameters(
+    period: ua.CreateSubscriptionParameters | float,
+    publishing: bool,
+    client: FakeClient,
+) -> ua.CreateSubscriptionParameters:
+    """The request asyncua's own client builds when a caller only hands it an interval.
+
+    Kept here so a test can show both kinds of client: one that states its lifetime and
+    keepalive, and one that lets a library state them and then has no request to compare
+    the server's answer with. The numbers are asyncua's, read from the installed library.
+    """
+    if isinstance(period, ua.CreateSubscriptionParameters):
+        return period
+    parameters = ua.CreateSubscriptionParameters()
+    parameters.RequestedPublishingInterval = period
+    parameters.RequestedLifetimeCount = 10_000
+    parameters.RequestedMaxKeepAliveCount = client.get_keepalive_count(period)
+    parameters.MaxNotificationsPerPublish = 10_000
+    parameters.PublishingEnabled = publishing
+    parameters.Priority = 0
+    return parameters
 
 
 class Recorder:
@@ -1035,6 +1079,92 @@ async def test_the_publishing_interval_and_overflow_policy_reach_the_server() ->
         await manager.stop()
 
 
+async def test_the_manager_states_every_timer_it_is_asking_for() -> None:
+    """Every subscription timer is in the request, because the toolkit wrote the request.
+
+    A client that hands a library an interval and lets it fill in the rest has a server
+    answer it cannot interpret: it does not know what was asked, so it cannot tell a
+    revision from a coincidence. This is the request Chapter 14 reviews and Chapter 10
+    compares the server's answer against.
+    """
+    manager, client = make_manager()
+    manager.register_handler(Recorder())
+    try:
+        await manager.subscribe([TEMPERATURE])
+        (request,) = client.requests
+        assert request.RequestedPublishingInterval == 100.0
+        assert request.RequestedLifetimeCount == 10_000
+        assert request.RequestedMaxKeepAliveCount == 450
+        assert request.MaxNotificationsPerPublish == 10_000
+        assert request.PublishingEnabled is True
+        assert request.Priority == 0
+    finally:
+        await manager.stop()
+
+
+async def test_a_keepalive_is_derived_from_the_session_that_carries_it() -> None:
+    """450 intervals at 100 ms, and 225 at the same interval in a shorter session.
+
+    A keepalive is a count of publishing intervals, so the session timeout it has to fit
+    inside is what decides it. Two managers, one interval, two session lengths: the count
+    moves, and the seconds it adds up to do not.
+    """
+    long_link, first = make_manager()
+    short_link, second = make_manager(client_kwargs={"session_timeout": 30_000})
+    try:
+        await long_link.subscribe([TEMPERATURE])
+        await short_link.subscribe([TEMPERATURE])
+        assert first.requests[0].RequestedMaxKeepAliveCount == 450
+        assert second.requests[0].RequestedMaxKeepAliveCount == 225
+        assert long_link.revision is None
+        # The durations are the same even though the counts are not: 450 intervals of
+        # 100 ms and 225 intervals of 100 ms are 45 s and 22.5 s, and both are 75% of the
+        # session that carries them.
+        answer = await long_link.confirm_subscription()
+        assert answer.revised_keepalive_seconds == 45.0
+        answer = await short_link.confirm_subscription()
+        assert answer.revised_keepalive_seconds == 22.5
+    finally:
+        await long_link.stop()
+        await short_link.stop()
+
+
+async def test_a_configured_keepalive_is_sent_exactly_as_written() -> None:
+    """A number somebody wrote down is never replaced with a derived one."""
+    manager, client = make_manager(
+        defaults=SubscriptionDefaults(max_keepalive_count=7, lifetime_count=20)
+    )
+    manager.register_handler(Recorder())
+    try:
+        await manager.subscribe([TEMPERATURE])
+        (request,) = client.requests
+        assert request.RequestedMaxKeepAliveCount == 7
+        assert request.RequestedLifetimeCount == 20
+        answer = await manager.confirm_subscription()
+        assert answer.requested_keepalive_seconds == 0.7
+        assert answer.revised_keepalive_seconds == 0.7
+    finally:
+        await manager.stop()
+
+
+async def test_a_server_clamp_shows_up_as_seconds_and_not_only_as_a_count() -> None:
+    """A server that shortens a lifetime shortens the time a reconnect has.
+
+    The count is the protocol's number and the seconds are the deployment's: Chapter 14
+    refuses a configuration whose reconnect policy waits longer than this.
+    """
+    manager, _client = make_manager(client_kwargs={"lifetime_cap": 1_000})
+    manager.register_handler(Recorder())
+    try:
+        await manager.subscribe([TEMPERATURE])
+        answer = await manager.confirm_subscription()
+        assert answer.revised_lifetime_seconds == 100.0
+        assert "lifetime=10000 (1000 s)" in answer.summary()
+        assert "lifetime=1000 (100 s)" in answer.summary()
+    finally:
+        await manager.stop()
+
+
 async def test_a_rebuild_keeps_the_publishing_state_the_application_had_chosen() -> None:
     """A reconnect must not turn the data flow back on behind the application's back."""
     manager, client = make_manager()
@@ -1177,16 +1307,24 @@ async def test_the_revised_numbers_are_the_servers_not_the_requested_ones() -> N
         assert answer.revised is True
         assert "lifetime count 10000 -> 1000" in answer.revisions
         # The summary is the line an operator sees in a log: it carries both numbers,
-        # the one that was asked for and the one the server is actually using.
+        # the one that was asked for and the one the server is actually using - and each
+        # count next to the duration that count adds up to, because the count on its own
+        # is not a timeout.
         summary = answer.summary()
         assert summary.startswith("ModifySubscription:")
-        assert "lifetime=10000" in summary  # what this client asked for
-        assert "lifetime=1000 keepalive" in summary  # what this server is using
+        assert "asked publishing=100 ms" in summary
+        assert "lifetime=10000 (1000 s)" in summary  # what this client asked for
+        assert "lifetime=1000 (100 s)" in summary  # what this server is using
         assert "[rebuilt]" not in summary
         # The clamped number is a timeout, not a formality: a lifetime count is
         # measured in publishing intervals, so 1000 intervals of 100 ms is 100 seconds
         # a subscription may survive without a Publish request before the server
-        # deletes it. That is the number Chapter 12's supervisor reasons about.
+        # deletes it. That is the number Chapter 12's supervisor reasons about, and the
+        # seconds are the same fact in the unit it reasons in.
+        assert answer.requested_lifetime_seconds == 1_000.0
+        assert answer.revised_lifetime_seconds == 100.0
+        assert answer.requested_keepalive_seconds == 45.0
+        assert answer.revised_keepalive_seconds == 45.0
     finally:
         await manager.stop()
 

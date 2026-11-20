@@ -30,14 +30,16 @@ uv run ruff check .               # lint
 uv run ruff check --fix .         # lint, applying safe fixes
 uv run mypy src tests examples    # types
 uv run pytest tests/unit -q       # seconds, no server
-uv run pytest tests/integration -q --tb=short   # starts its own servers, ~8 min
+uv run pytest tests/integration -q --tb=short   # starts its own servers, ~10 min
 uv run pytest tests/integration/test_subscriptions.py -v -x   # one file, stop at first failure
 uv run pytest -m integration -k supervision     # selection across files
 uv run pytest --cov --cov-report=term-missing   # coverage of src/opcua_toolkit
 ```
 
-The full suite (`tests/unit` + `tests/integration`) runs in about 8 minutes on a laptop; the
-integration half is slow because it really starts asyncua servers per test.
+The integration suite takes a little under ten minutes on a laptop (`183 passed, 2 skipped in
+569.90s` on the run that finished Chapter 16); the unit suite takes about five seconds
+(`426 passed in 4.81s`). The integration half is slow because it really starts asyncua servers per
+test.
 
 ## Repository layout
 
@@ -47,8 +49,13 @@ uv.lock                   locked dependency set that CI installs
 src/opcua_toolkit/        the toolkit (one module per OPC UA concept)
   browse/                 explorer.py (NamespaceExplorer), model.py (NodeRef, BrowseTree, BrowseStats)
   subscriptions/          manager.py (SubscriptionManager), model.py (records, options, revisions)
+  server/                 model.py (ObjectTypeSpec, VariableTypeSpec, ComponentSpec, InstanceSpec, TypeReport, InstanceReport, TypeCoverage), reader.py (AddressSpaceReader), authoring.py (AddressSpaceAuthor)
+  buffer.py / spool.py    NotificationBuffer and BufferStats, JsonlSpool and SpoolStats
+  config.py               ApplicationConfig, layered sources with provenance, ConfigReview
+  discovery.py            ServerProfile, endpoints, identity tokens, namespaces
   settings.py             ClientSettings, SecuritySettings, RetryPolicy, SubscriptionDefaults, LimitsOverrides
   resilience.py           ConnectionSupervisor, ConnectionStatus
+  read.py / write.py / methods.py / inspector.py / limits.py / health.py / values.py / nodeids.py / errors.py / diagnostics.py
   devserver.py            DemoServer, DemoServerConfig, the opcua-tutorial-server CLI
   cli.py                  the opcua-toolkit CLI
 examples/                 one script per chapter, _support.py (the shared harness), README.md
@@ -125,10 +132,19 @@ development tool for finding untested decisions, not a badge to chase.
 | --- | --- |
 | `demo_config` | `DemoServerConfig(port=0, simulate=False)` |
 | `demo_server` | one live `DemoServer` per test, on an OS-chosen port |
+| `connect` | a factory that opens - and always closes - a client for any endpoint, for a test that needs a second or third session |
 | `client` | a connected asyncua client for that server |
 | `limits` | the `OperationLimits` that server actually published |
 | `service_calls` | a per-service call counter, for proving batching happened |
+| `demo_tag_texts` | the canonical NodeId texts of the demo batch tags, the same texts the CLI prints |
 | `free_port()` | a helper (not a fixture) for the rare test that must name a port |
+
+Chapter files add their own fixtures when a chapter needs a different server: the Chapter 16
+integration file defines `authored_server` (a `DemoServer` started with `authored_model=True`),
+`admin_client` (a session that really holds `UserRole.Admin`, which is what an authoring session
+needs) and `model_client` (a plain session against that same authored server). Nothing in
+`conftest.py` knows about the authored namespace, so the fifteen chapters before it keep running
+against the plain server they measured.
 
 The counter placement is a lesson in itself: asyncua's `Client` delegates to `uaclient`,
 which delegates to a `UaSession`. Subscriptions and nodes hold the **session**, not the
@@ -217,7 +233,7 @@ pull request, and the integration suite is what tells you whether a chapter surv
 
 - `main` holds the old tutorial until the rewrite replaces it.
 - `rework/v2` is an earlier attempt, kept only for history.
-- `rework/v3` is the rewrite: the toolkit, chapters 1-13, the tests, the container setup and
+- `rework/v3` is the rewrite: the toolkit, chapters 1-15, the tests, the container setup and
   these docs.
 - The distribution is `opcua-tutorial` version `2.0.0`; the toolkit package is
   `opcua_toolkit`. Chapters land as minor versions, and a chapter that changes public API

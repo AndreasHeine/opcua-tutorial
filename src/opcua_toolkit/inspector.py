@@ -17,6 +17,7 @@ Design rules:
 from __future__ import annotations
 
 import dataclasses
+import re
 from collections.abc import Iterable, Sequence
 from typing import Any
 
@@ -51,6 +52,9 @@ IDENTITY_ATTRIBUTES: tuple[ua.AttributeIds, ...] = (
     ua.AttributeIds.Historizing,
 )
 
+#: asyncua's enum mirrors the AccessLevelType table in OPC 10000-3: its members are bit
+#: positions, not masks. Bit 7 is `Reserved` there and has no member here, because the
+#: specification says it shall always be zero, so there is nothing to decode it into.
 _ACCESS_BIT_POSITIONS: dict[str, int] = {
     access.name: int(access.value) for access in ua.AccessLevel
 }
@@ -60,59 +64,74 @@ _ACCESS_BIT_POSITIONS: dict[str, int] = {
 class AccessRights:
     """Decoded AccessLevel / UserAccessLevel bit mask.
 
-    OPC 10000-3 defines AccessLevel as a bit mask on a Byte. Checking
-    ``access & 0x02`` by hand is the classic beginner bug: it looks right until
-    it silently tests the wrong bit. Decode once, here.
+    OPC 10000-3 gives both attributes the data type ``AccessLevelType``: a subtype of
+    ``Byte`` with an ``OptionSetValues`` property, which is the specification's way of
+    saying "one byte whose every bit has a defined name". All eight bits are named
+    there, and a decoder that knows only the first two is the classic beginner bug -
+    ``access & 0x02`` by hand looks right until it silently tests the wrong bit.
+
+    ``Reserved`` (bit 7) is deliberately not modelled. The specification says it shall
+    always be zero, so a server that sets it is out of specification and there is no
+    honest name to report for it.
     """
 
     bits: int = 0
 
     @property
     def current_read(self) -> bool:
-        """Current values may be read."""
+        """``CurrentRead``: the current value is readable, and is available at all."""
         return self._has("CurrentRead")
 
     @property
     def current_write(self) -> bool:
-        """Current values may be written."""
+        """``CurrentWrite``: the current value is writeable, and is available at all."""
         return self._has("CurrentWrite")
 
     @property
     def history_read(self) -> bool:
-        """Historical values may be read (Chapter 20)."""
+        """``HistoryRead``: this server has history for the node and it may be read (Chapter 20)."""
         return self._has("HistoryRead")
 
     @property
     def history_write(self) -> bool:
-        """Historical values may be written (Chapter 20)."""
+        """``HistoryWrite``: history may be written to the node (Chapter 20)."""
         return self._has("HistoryWrite")
 
     @property
     def timestamp_write(self) -> bool:
-        """Source timestamps may be written."""
+        """``TimestampWrite``: any ``SourceTimestamp`` may be written, not only a null one."""
         return self._has("TimestampWrite")
 
     @property
     def status_write(self) -> bool:
-        """Status codes may be written."""
+        """``StatusWrite``: any ``StatusCode`` may be written, not only ``Good``."""
         return self._has("StatusWrite")
 
     @property
     def semantic_change(self) -> bool:
-        """Writing changes the semantic meaning of the value."""
+        """``SemanticChange``: this node is a Property that carries meaning for its parent.
+
+        OPC 10000-3 sets the bit on Properties that define a semantic aspect of their
+        parent Node, and whose value - so that semantic aspect - may change while the
+        server runs. It belongs on type metadata, not on a plant tag.
+        """
         return self._has("SemanticChange")
 
     def _has(self, name: str) -> bool:
         return bool(self.bits & (1 << _ACCESS_BIT_POSITIONS[name]))
 
     def describe(self) -> str:
-        """Short human readable form, e.g. ``CurrentRead|CurrentWrite``."""
+        """Short human readable form, e.g. ``CurrentRead|CurrentWrite``.
+
+        Names come from the specification in table order, so the reserved bit is simply
+        absent rather than renamed.
+        """
         names = [name for name in _ACCESS_BIT_POSITIONS if self._has(name)]
         return "|".join(names) if names else "none"
 
     def as_dict(self) -> dict[str, bool]:
-        """JSON-safe representation."""
-        return {name.lower(): self._has(name) for name in _ACCESS_BIT_POSITIONS}
+        """JSON-safe representation, keyed by the specification's names in snake case."""
+        return {_snake_case(name): self._has(name) for name in _ACCESS_BIT_POSITIONS}
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -323,6 +342,11 @@ class NodeInspector:
                 text = getattr(raw, "Name", None) or data_type_name(node_id)
                 names[format_node_id(node_id)] = str(text)
         return names
+
+
+def _snake_case(name: str) -> str:
+    """``CurrentRead`` -> ``current_read``: the specification's own names, spellable in JSON."""
+    return re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", name).lower()
 
 
 def _build_descriptor(

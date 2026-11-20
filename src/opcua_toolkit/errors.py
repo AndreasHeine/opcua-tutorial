@@ -109,6 +109,22 @@ class SubscriptionClosedError(OpcuaToolkitError):
     """The subscription was already closed."""
 
 
+class AddressSpaceError(OpcuaToolkitError):
+    """The address space could not be authored, or does not hold what it was asked to.
+
+    Chapter 16 raises this for three different situations on purpose: a declaration
+    that would produce an unreadable type (a BrowseName a server would refuse, a type
+    with no InstanceDeclarations), a server that refused an ``AddNodes`` request, and
+    an instance that does not hold what its own type promised. They are the same
+    failure to an operator - the address space is not what the application believes
+    it is - and different enough to a reader of the message to be worth naming.
+    """
+
+
+class SpoolError(OpcuaToolkitError):
+    """A spool file could not be read, written, or understood."""
+
+
 def describe_status(status: StatusCode | None) -> str:
     """Return a stable ``Name (0x........)`` representation for a status code."""
     if status is None:
@@ -131,6 +147,7 @@ def format_node_id(node_id: NodeId | Any) -> str:
 
 
 __all__ = [
+    "AddressSpaceError",
     "BrowsePathError",
     "ConfigurationError",
     "ConnectionSetupError",
@@ -144,6 +161,7 @@ __all__ = [
     "PartialFailureError",
     "SecurityConfigurationError",
     "ServerUnhealthyError",
+    "SpoolError",
     "SubscriptionClosedError",
     "describe_status",
     "format_node_id",

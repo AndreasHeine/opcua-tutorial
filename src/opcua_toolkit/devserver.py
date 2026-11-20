@@ -39,7 +39,19 @@ from asyncua.server.history_sql import HistorySQLite
 from asyncua.ua.uaerrors import UaError
 
 from opcua_toolkit.diagnostics import configure_logging
+from opcua_toolkit.errors import format_node_id
 from opcua_toolkit.limits import LIMIT_PROPERTY_IDS
+from opcua_toolkit.server import (
+    AddressSpaceAuthor,
+    ComponentSpec,
+    InstanceReport,
+    InstanceSpec,
+    ModellingRule,
+    ObjectTypeSpec,
+    TypeReport,
+    VariableAccess,
+    VariableTypeSpec,
+)
 from opcua_toolkit.values import unwrap as _unwrap_value
 
 _logger = logging.getLogger(__name__)
@@ -104,6 +116,14 @@ class DemoServerConfig:
             answered ``GetEndpoints`` rewrites the published URL from the ``EndpointUrl``
             the client asked about, so the announced host is a mirror of the question, and
             the thing that has to be right on the wire is the port mapping.
+        authored_model: Off by default. When it is on, the server *authors* an address
+            space of its own in ``AssetModel``: declared ObjectTypes, their
+            InstanceDeclarations and two pump instances, all through
+            :class:`~opcua_toolkit.server.authoring.AddressSpaceAuthor`. It is opt-in
+            because Chapters 4 to 15 measure a server whose every variable is a plain
+            ``BaseDataVariableType`` - that is the address space they teach against - and
+            a tutorial server that quietly changes it under them is worse than two
+            servers. Chapter 16 is the chapter that turns this on.
     """
 
     host: str = DEFAULT_HOST
@@ -130,6 +150,7 @@ class DemoServerConfig:
     subscription_keepalive_cap: int = 100
     monitored_item_queue_cap: int = 100
     max_subscriptions: int = 20
+    authored_model: bool = False
 
     @property
     def endpoint(self) -> str:
@@ -174,6 +195,11 @@ class DemoServer:
 
         async with DemoServer(DemoServerConfig(port=0)) as server:
             settings = ClientSettings(endpoint_url=server.endpoint)
+
+    With :attr:`DemoServerConfig.authored_model` switched on it *also* authors the declared
+    model of Chapter 16 - ``MachineType``, ``PumpType`` and two pumps - in its own
+    ``AssetModel`` folder. Switched off, which is the default, nothing about the address
+    space the earlier chapters measure changes.
     """
 
     def __init__(self, config: DemoServerConfig | None = None) -> None:
@@ -186,6 +212,9 @@ class DemoServer:
         self._writable_names: set[str] = set()
         self._batch_names: list[str] = []
         self._nodes: dict[str, Node] = {}
+        self._authored_types: dict[str, TypeReport] = {}
+        self._authored_instances: dict[str, InstanceReport] = {}
+        self._author: AddressSpaceAuthor | None = None
         self._simulator: asyncio.Task[None] | None = None
         self._stop = asyncio.Event()
         self._history: HistorySQLite | None = None
@@ -250,6 +279,32 @@ class DemoServer:
     def methods(self) -> dict[str, ua.NodeId]:
         """``{browse name: NodeId}`` for every demo method."""
         return dict(self._method_names)
+
+    @property
+    def authored_types(self) -> dict[str, TypeReport]:
+        """``{BrowseName: TypeReport}`` for the ObjectTypes this server authored.
+
+        Empty unless :attr:`DemoServerConfig.authored_model` was on. Each report was read
+        back from the server, so it says what the address space now holds - including the
+        corrections the author had to make to get there.
+        """
+        return dict(self._authored_types)
+
+    @property
+    def authored_instances(self) -> dict[str, InstanceReport]:
+        """``{BrowseName: InstanceReport}`` for the instances the authored types produced."""
+        return dict(self._authored_instances)
+
+    @property
+    def authored_folder_id(self) -> ua.NodeId | None:
+        """The ``AssetModel`` folder the authored model lives in, or ``None`` when off."""
+        node = self._nodes.get("asset_model")
+        return node.nodeid if node is not None else None
+
+    @property
+    def author(self) -> AddressSpaceAuthor | None:
+        """The author that wrote the authored section, or ``None`` when it is switched off."""
+        return self._author
 
     @property
     def line_node_id(self) -> ua.NodeId:
@@ -473,6 +528,26 @@ class DemoServer:
             self._tags[name] = node.nodeid
 
         await self._add_methods(line, index)
+        if self._config.authored_model:
+            await self._author_model(server, index)
+
+    async def _author_model(self, server: Server, index: int) -> None:
+        """Author the declared part of this server's address space (Chapter 16).
+
+        The authored model lives in its own ``AssetModel`` folder and its types hang off
+        ``BaseObjectType``, so it adds structure without touching the tag and method nodes
+        the earlier chapters measure. It runs through the toolkit's own author rather than
+        through asyncua helpers directly: that is the point of the chapter, and it is the
+        same code that later writes the gateway's address space on a server it does not own.
+        """
+        folder = await server.nodes.objects.add_folder(*_node_pair(AUTHORED_FOLDER_NAME, index))
+        self._nodes["asset_model"] = folder
+        author = AddressSpaceAuthor(folder, namespace_index=index)
+        self._author = author
+        for type_report in await author.author_model(AUTHORED_TYPES):
+            self._authored_types[type_report.browse_name] = type_report
+        for instance_report in await author.instantiate_all(AUTHORED_INSTANCES, parent=folder):
+            self._authored_instances[instance_report.browse_name] = instance_report
 
     async def _add_methods(self, line: Node, index: int) -> None:
         """Declare the methods Chapter 9 discovers instead of hardcoding.
@@ -827,6 +902,130 @@ _READ_ONLY_TAGS: dict[str, tuple[object, ua.VariantType, str]] = {
     "CommissioningCompleted_RO": (True, ua.VariantType.Boolean, "Read only commissioning flag"),
 }
 
+#: Name of the folder the opt-in authored model lives in. Separate from ``ProductionLine``
+#: on purpose: the chapters before Chapter 16 measure a server whose variables are all
+#: plain ``BaseDataVariableType`` objects, and those measurements have to stay valid.
+AUTHORED_FOLDER_NAME = "AssetModel"
+
+#: The tutorial's declared model, in dependency order: an abstract contract, a concrete
+#: type that inherits it, and one component typed with a VariableType of its own - the
+#: shape of OPC 10000-3, 4.6.1's ``SetPoint`` example, where many objects share one common
+#: VariableType so a client can recognise the definition without reading a description.
+#:
+#: The simulator does not touch these nodes. An authored instance's value is whatever the
+#: declaration carried plus whatever the instance spec said, which is what makes the
+#: Chapter 16 numbers repeatable.
+AUTHORED_TYPES: tuple[ObjectTypeSpec, ...] = (
+    ObjectTypeSpec(
+        name="MachineType",
+        abstract=True,
+        description="Abstract contract every machine in this plant shares",
+        components=(
+            ComponentSpec(
+                name="Temperature",
+                data_type="Double",
+                initial=21.5,
+                access=VariableAccess.READ_WRITE,
+                rule=ModellingRule.MANDATORY,
+                min_sampling_interval=100.0,
+                description="Machine temperature in degrees Celsius",
+            ),
+            ComponentSpec(
+                name="Running",
+                data_type="Boolean",
+                initial=False,
+                rule=ModellingRule.MANDATORY,
+                description="Whether this machine is running",
+            ),
+        ),
+        properties=(
+            ComponentSpec(
+                name="AssetTag",
+                data_type="String",
+                initial="UNLABELLED",
+                rule=ModellingRule.MANDATORY,
+                description="Rising asset tag of this machine",
+            ),
+        ),
+    ),
+    ObjectTypeSpec(
+        name="PumpType",
+        supertype="MachineType",
+        description="A pump: everything a machine has, plus what makes it a pump",
+        components=(
+            ComponentSpec(
+                name="Pressure",
+                data_type="Double",
+                initial=4.2,
+                access=VariableAccess.READ_WRITE,
+                rule=ModellingRule.MANDATORY,
+                description="Discharge pressure in bar",
+            ),
+            ComponentSpec(
+                name="Vibration",
+                data_type="Float",
+                initial=2.4,
+                rule=ModellingRule.OPTIONAL,
+                description="Vibration sensor in mm/s - not every pump carries one",
+            ),
+            ComponentSpec(
+                name="SetPoint",
+                data_type="Float",
+                initial=60.0,
+                access=VariableAccess.READ_WRITE,
+                rule=ModellingRule.MANDATORY,
+                variable_type=VariableTypeSpec(
+                    name="MachineSetPointType",
+                    data_type="Float",
+                    description="A target value an operator is allowed to change",
+                ),
+                min_sampling_interval=250.0,
+                description="Target discharge pressure in bar",
+            ),
+        ),
+        properties=(
+            ComponentSpec(
+                name="MaintenanceNote",
+                data_type="String",
+                rule=ModellingRule.OPTIONAL,
+                description="Free text maintenance note, only where one was written",
+            ),
+        ),
+    ),
+)
+
+#: Two instances of the same type, differing only in their values. The values arrive after
+#: instantiation, so every pump is born with what its type declared and then becomes itself.
+AUTHORED_INSTANCES: tuple[InstanceSpec, ...] = (
+    InstanceSpec(
+        name="Pump_01",
+        type_name="PumpType",
+        values={
+            "AssetTag": "PUMP-01",
+            "Temperature": 61.5,
+            "Running": True,
+            "Pressure": 6.4,
+            "Vibration": 1.2,
+            "SetPoint": 60.0,
+            "MaintenanceNote": "bearing check due 2026-12-01",
+        },
+        description="Pump 01: the one with a maintenance note",
+    ),
+    InstanceSpec(
+        name="Pump_02",
+        type_name="PumpType",
+        values={
+            "AssetTag": "PUMP-02",
+            "Temperature": 58.2,
+            "Running": False,
+            "Pressure": 5.1,
+            "Vibration": 0.8,
+            "SetPoint": 55.0,
+        },
+        description="Pump 02: the one that is standing still",
+    ),
+)
+
 
 def build_argument_parser() -> argparse.ArgumentParser:
     """Command line interface of ``opcua-tutorial-server``."""
@@ -873,6 +1072,14 @@ def build_argument_parser() -> argparse.ArgumentParser:
         "--historize", action="store_true", help="historize Temperature in a SQLite file"
     )
     parser.add_argument("--history-path", type=Path, default=None, help="history database path")
+    parser.add_argument(
+        "--authored-model",
+        action="store_true",
+        help=(
+            "author a declared address space in an extra AssetModel folder "
+            "(MachineType, PumpType and two pumps) - see Chapter 16"
+        ),
+    )
     parser.add_argument("--log-level", default="INFO", help="DEBUG, INFO, WARNING or ERROR")
     parser.add_argument("--json-logs", action="store_true", help="emit JSON log lines")
     return parser
@@ -895,6 +1102,7 @@ def config_from_args(args: argparse.Namespace) -> DemoServerConfig:
         simulate=not args.no_simulate,
         historize=args.historize,
         history_path=args.history_path,
+        authored_model=args.authored_model,
     )
 
 
@@ -905,6 +1113,12 @@ async def run_forever(config: DemoServerConfig) -> None:
     print(f"demo server ready on {server.endpoint}")
     print(f"namespace {server.namespace_index} = {server.namespace_uri}")
     print(f"tags: {len(server.tags)} methods: {len(server.methods)}")
+    if server.authored_types:
+        print(
+            f"authored model: {len(server.authored_types)} types "
+            f"{', '.join(sorted(server.authored_types))} "
+            f"in {format_node_id(server.authored_folder_id)}"
+        )
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for signal_name in ("SIGINT", "SIGTERM"):
@@ -950,6 +1164,9 @@ if __name__ == "__main__":
 
 
 __all__ = [
+    "AUTHORED_FOLDER_NAME",
+    "AUTHORED_INSTANCES",
+    "AUTHORED_TYPES",
     "DEFAULT_APPLICATION_NAME",
     "DEFAULT_NAMESPACE_URI",
     "DEFAULT_PORT",

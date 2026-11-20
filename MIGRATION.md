@@ -19,7 +19,7 @@ you have code written against the old layout.
 | `client/call_method.py` | `examples/ch09_methods.py` + `MethodCatalog`, `MethodInvoker` |
 | `client/subscribe.py` | `examples/ch10_subscriptions.py` and `examples/ch11_dispatch.py` + `SubscriptionManager` |
 | `client/extension_objects.py` ("coming soon") | removed; structure and custom data types are covered in Part 6 (companion specifications, chapters 21-24) |
-| `server/BaseServer.py` | `opcua_toolkit.devserver.DemoServer`, runnable as `opcua-tutorial-server`; server authoring is Part 5 (chapters 16-20) |
+| `server/BaseServer.py` | `opcua_toolkit.devserver.DemoServer`, runnable as `opcua-tutorial-server`; authoring an address space is `opcua_toolkit.server` (Chapter 16), and the rest of the server side comes in chapters 17-20 |
 | `client/README.md`, `server/README.md` | `docs/chapters/`, `docs/ROADMAP.md` |
 | `requirements.txt` | `pyproject.toml` + `uv.lock` |
 | no tests, no lint, no types | `tests/unit`, `tests/integration`, `ruff`, `mypy`, `.github/workflows/ci.yml` |
@@ -138,7 +138,10 @@ toolkit's own modules expose the same data as objects (`stats.summary()`,
 | a `SubscriptionHandler` class | `SubscriptionManager` + `register_handler` | 10, 11 |
 | `asyncio.sleep(n)` polling loops | a supervised subscription | 10, 12 |
 | `print(datachange)` | `DataChangeRecord` handed to your own queue | 11, 15 |
+| a `collections.deque(maxlen=n)` you append to in a handler | `NotificationBuffer` + `buffering_handler`, with the drop policy named | 15 |
+| a CSV or JSON file you append to when a send fails | `JsonlSpool`, bounded by records and bytes, with `take()` as the acknowledgement | 15 |
 | a hand-rolled reconnect loop | `ConnectionSupervisor` with an observer | 12 |
+| model-building code that calls `add_object` / `add_object_type` inside the server process | `AddressSpaceAuthor` on a client session, with `ObjectTypeSpec` / `ComponentSpec`, read back through `AddressSpaceReader` | 16 |
 | `logging.basicConfig()` in each script | `configure_logging(level, json_output=...)` once at the entry point | 3, 28 |
 | `requirements.txt` | `pyproject.toml` + `uv.lock` | 3 |
 

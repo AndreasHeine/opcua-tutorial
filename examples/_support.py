@@ -133,8 +133,18 @@ class ChapterRun:
         return self._settings.model_copy(update=updates)
 
     @contextlib.asynccontextmanager
-    async def open_client(self, *, auto_reconnect: bool = False) -> AsyncIterator[Client]:
+    async def open_client(
+        self,
+        *,
+        auto_reconnect: bool = False,
+        settings: ClientSettings | None = None,
+    ) -> AsyncIterator[Client]:
         """Connect a client built from these settings, and always close it.
+
+        ``settings`` is Chapter 14's lever: a client built from a configuration file
+        resolves its own :class:`ClientSettings`, and the run only supplies the endpoint the
+        file deliberately does not. Passing nothing keeps the behaviour every other chapter
+        uses.
 
         ``auto_reconnect`` is Chapter 12's lever: asyncua's own supervisor keeps
         the session and its subscriptions alive while the toolkit's supervisor
@@ -144,7 +154,8 @@ class ChapterRun:
         server as part of the demonstration must end with its own output, not
         with a teardown traceback.
         """
-        client = self._settings.create_client()
+        settings = settings if settings is not None else self._settings
+        client = settings.create_client()
         try:
             await client.connect(auto_reconnect=auto_reconnect)
             yield client
@@ -168,6 +179,7 @@ async def chapter_run(
     session_name: str,
     simulate: bool = True,
     publish_limits: bool = True,
+    authored_model: bool = False,
 ) -> AsyncIterator[ChapterRun]:
     """Parse the shared arguments, start the demo server if asked, hand over the run.
 
@@ -181,6 +193,10 @@ async def chapter_run(
             the simulator.
         publish_limits: Set to ``False`` to see how the toolkit behaves against a
             server that publishes no OperationLimits.
+        authored_model: Set to ``True`` for the chapters that need a server with a
+            *declared* address space: ObjectTypes, InstanceDeclarations and instances
+            of them, in an extra ``AssetModel`` folder (Chapter 16). Left off, the demo
+            server is exactly the server Chapters 4 to 15 measured.
     """
     args = build_parser(description).parse_args()
     configure_logging(args.log_level)
@@ -192,7 +208,10 @@ async def chapter_run(
         endpoint = args.endpoint
     elif args.demo:
         config = DemoServerConfig(
-            port=args.demo_port, simulate=simulate, publish_limits=publish_limits
+            port=args.demo_port,
+            simulate=simulate,
+            publish_limits=publish_limits,
+            authored_model=authored_model,
         )
         server = DemoServer(config)
         await server.start()

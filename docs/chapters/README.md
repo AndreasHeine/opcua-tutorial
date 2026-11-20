@@ -1,7 +1,8 @@
 # Chapters
 
-Thirteen chapters are built and tested. The rest are planned in
-[../ROADMAP.md](../ROADMAP.md) and will be added as their parts are built.
+Sixteen chapter pages exist: three written (Part 1) and thirteen built and tested
+(Parts 2 to 5). The rest are planned in [../ROADMAP.md](../ROADMAP.md) and will be added
+as their parts are built.
 
 A chapter page always has the same six sections:
 
@@ -27,9 +28,12 @@ A chapter page always has the same six sections:
 | [11](ch11_dispatch.md) | Dispatch | 3 | built and tested | `examples/ch11_dispatch.py` |
 | [12](ch12_supervision.md) | Supervision | 3 | built and tested | `examples/ch12_supervision.py` |
 | [13](ch13_discovery_driven_configuration.md) | Discovery-driven configuration | 4 | built and tested | `examples/ch13_discovery.py` |
+| [14](ch14_configuration.md) | Configuration that refuses mistakes | 4 | built and tested | `examples/ch14_configuration.py`, `examples/gateway.yaml` |
+| [15](ch15_queues_and_buffering.md) | Queues, buffering, and the file that survives the outage | 4 | built and tested | `examples/ch15_buffering.py` |
+| [16](ch16_authored_address_space.md) | Author an address space, and read back what it promises | 5 | built and tested | `examples/ch16_authored_address_space.py` |
 
-Chapters 14-31 and the capstone are described in the roadmap: generic application
-shapes, servers, companion specifications, security, logging, testing, interfaces and
+Chapters 17-31 and the capstone are described in the roadmap: the rest of the server side,
+companion specifications, security, logging, testing, interfaces and
 architecture, ending with the OPC UA edge gateway.
 
 ## Running any built chapter

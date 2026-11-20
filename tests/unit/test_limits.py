@@ -108,7 +108,8 @@ def test_describe_and_status_note_are_useful_without_being_noisy() -> None:
     )
     described = limits.describe()
     assert "max_nodes_per_read: 10" in described
-    assert "min_supported_sample_rate: 50.0 ms" in described
+    assert "min_supported_sample_rate: 50 ms" in described
+    assert "50.0 ms" not in described, "50 ms is not a float in a report"
     assert "not published" not in described
     assert limits.status_note() == "server published all operation limits"
 

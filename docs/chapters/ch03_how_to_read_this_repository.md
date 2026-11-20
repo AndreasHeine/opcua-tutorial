@@ -108,7 +108,9 @@ same thing in `src/opcua_toolkit/resilience.py`, `examples/ch12_supervision.py`,
 | 11 | `subscriptions/manager.py` | `ch11_dispatch.py` | `test_subscription_manager.py` | `test_subscriptions.py` |
 | 12 | `resilience` | `ch12_supervision.py` | `test_supervision.py`, `test_resilience_model.py` | `test_resilience.py` |
 | 13 | `discovery` | `ch13_discovery.py` | `test_discovery_model.py` | `test_discovery.py`, `test_cli.py` |
-| 14 | `config` | `ch14_configuration.py`, `gateway.yaml` | `test_config.py` | `test_config_review.py`, `test_cli.py` |
+| 14 | `config` | `ch14_configuration.py`, `gateway.yaml` | `test_config.py` | `test_config_review.py` |
+| 15 | `buffer`, `spool` | `ch15_buffering.py` | `test_buffer_model.py`, `test_spool_model.py` | `test_buffering.py` |
+| 16 | `server/` (`model`, `reader`, `authoring`) | `ch16_authored_address_space.py` | `test_address_space_model.py` | `test_address_space.py`, `test_browse.py`, `test_cli.py` |
 
 ### The example harness
 

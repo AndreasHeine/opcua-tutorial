@@ -91,6 +91,62 @@ async def test_a_partly_failed_read_exits_non_zero_and_names_the_status(
     assert "BadNodeIdUnknown" in printed
 
 
+async def test_browse_resolves_a_path_from_the_objects_folder(demo_server, capsys) -> None:
+    """``--path`` is the command a reader uses first, so its two spellings are tested.
+
+    ``ProductionLine/Line1`` is the path relative to the Objects folder the CLI starts at;
+    ``Objects/ProductionLine`` is the same place written the way the address space is drawn,
+    which names the starting node itself.
+    """
+    relative = await run_cli(
+        "browse", "--path", "ProductionLine/Line1", "--endpoint", demo_server.endpoint
+    )
+    printed_relative = capsys.readouterr().out
+    assert relative == EXIT_OK
+    assert "resolved ProductionLine/Line1 -> ns=2;s=Line1" in printed_relative
+
+    drawn = await run_cli(
+        "browse", "--path", "Objects/ProductionLine", "--endpoint", demo_server.endpoint
+    )
+    printed_drawn = capsys.readouterr().out
+    assert drawn == EXIT_OK
+    assert "resolved Objects/ProductionLine -> ns=2;s=ProductionLine" in printed_drawn
+
+
+async def test_browse_looks_for_a_path_under_the_node_it_was_given(demo_server, capsys) -> None:
+    """``--node`` decides where the first segment of ``--path`` is looked for.
+
+    Before this was tested, ``--node`` was quietly ignored whenever ``--path`` was present,
+    which made a rooted path look like a broken server: the segments were searched from the
+    Objects folder, where they are not.
+    """
+    code = await run_cli(
+        "browse",
+        "--node",
+        "ns=2;s=ProductionLine",
+        "--path",
+        "Line1/Temperature",
+        "--endpoint",
+        demo_server.endpoint,
+    )
+    printed = capsys.readouterr().out
+    assert code == EXIT_OK
+    assert "resolved Line1/Temperature -> ns=2;s=Temperature" in printed
+
+    broken = await run_cli(
+        "browse",
+        "--node",
+        "ns=2;s=Line1",
+        "--path",
+        "ProductionLine/Line1",
+        "--endpoint",
+        demo_server.endpoint,
+    )
+    refused = capsys.readouterr().err
+    assert broken == EXIT_ERROR
+    assert "No node named 'ProductionLine' under ns=2;s=Line1 (segment 1 of 2)" in refused
+
+
 async def test_a_dead_endpoint_is_one_line_of_output_not_a_traceback(capsys) -> None:
     """The first command anyone runs is usually pointed at the wrong address.
 

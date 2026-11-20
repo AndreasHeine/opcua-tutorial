@@ -1,8 +1,10 @@
-"""Chapter 8 and Chapter 15 tests: access level masks and node descriptors.
+"""Chapter 6 and Chapter 8 tests: access rights and node descriptors.
 
-AccessLevel is a bit mask on a Byte. The beginner bug is testing ``access & 2``
-by hand and getting the wrong bit. These tests pin the decoding so that
-"can this node be written?" is one question with one answer.
+``AccessLevelType`` is OPC 10000-3's Byte subtype behind ``AccessLevel`` and
+``UserAccessLevel``, and its members are named by bit *position*. The beginner bug is
+testing ``access & 2`` by hand and getting the wrong bit; the quieter bug is knowing only
+the first two bits and guessing at the rest. These tests pin the decoding to the
+specification's table, so "may this node be written?" is one question with one answer.
 """
 
 from __future__ import annotations
@@ -13,6 +15,19 @@ from asyncua import ua
 
 from opcua_toolkit.inspector import AccessRights, NodeDescriptor
 from opcua_toolkit.values import format_value
+
+#: Every named bit of OPC 10000-3's AccessLevelType table: specification name, bit position,
+#: and the property the toolkit exposes for it. The reserved bit is absent because the
+#: specification assigns it no meaning to expose.
+ACCESS_TABLE: tuple[tuple[str, int, str], ...] = (
+    ("CurrentRead", 0, "current_read"),
+    ("CurrentWrite", 1, "current_write"),
+    ("HistoryRead", 2, "history_read"),
+    ("HistoryWrite", 3, "history_write"),
+    ("SemanticChange", 4, "semantic_change"),
+    ("StatusWrite", 5, "status_write"),
+    ("TimestampWrite", 6, "timestamp_write"),
+)
 
 READ = 1 << int(ua.AccessLevel.CurrentRead.value)
 WRITE = 1 << int(ua.AccessLevel.CurrentWrite.value)
@@ -48,11 +63,16 @@ def test_no_bits_means_no_access_at_all() -> None:
 
 
 def test_the_rarer_bits_are_decoded_as_their_own_flags() -> None:
-    access = AccessRights(HISTORY_WRITE | (1 << int(ua.AccessLevel.StatusWrite.value)))
+    """Bits 3, 4 and 5 are what a decoder that only knows read and write has to guess at."""
+    positions = {name: position for name, position, _ in ACCESS_TABLE}
+    bits = sum(1 << positions[name] for name in ("HistoryWrite", "SemanticChange", "StatusWrite"))
+    access = AccessRights(bits)
     assert access.history_write
+    assert access.semantic_change
     assert access.status_write
     assert not access.current_write
     assert not access.timestamp_write
+    assert access.describe() == "HistoryWrite|SemanticChange|StatusWrite"
 
 
 def test_access_levels_are_bit_positions_not_bit_masks() -> None:
@@ -64,11 +84,47 @@ def test_access_levels_are_bit_positions_not_bit_masks() -> None:
     assert (READ & WRITE) == 0
 
 
+def test_the_toolkit_decodes_the_bits_the_specification_names_at_their_own_positions() -> None:
+    """A bit position drift is invisible in a demo and decisive on a real server.
+
+    A client that believes bit 6 means "historically" is answering "does this node have
+    history?" from a bit that means "may a timestamp be written". The table is asserted
+    from both sides: what the toolkit decodes, and what the library claims.
+    """
+    for spec_name, position, property_name in ACCESS_TABLE:
+        rights = AccessRights(1 << position)
+        assert getattr(rights, property_name), f"bit {position} is {spec_name}"
+        # describe() lists named bits only, so one name is the proof that no other bit moved.
+        assert rights.describe() == spec_name
+    assert {access.name: int(access.value) for access in ua.AccessLevel} == {
+        name: position for name, position, _ in ACCESS_TABLE
+    }
+
+
+def test_the_reserved_bit_is_not_invented_as_a_right() -> None:
+    """OPC 10000-3 reserves bit 7 and says it shall always be zero.
+
+    A server that sets it is out of specification, and reporting it as some name would be
+    the toolkit making up a permission. It reports nothing instead.
+    """
+    reserved = AccessRights(1 << 7)
+    assert reserved.describe() == "none"
+    assert not any(getattr(reserved, attribute) for _, _, attribute in ACCESS_TABLE)
+    assert not any(reserved.as_dict().values())
+
+
+def test_a_full_mask_is_reported_as_the_seven_rights_it_actually_names() -> None:
+    """0xFF looks like "everything allowed" and is really the reserved bit plus seven rights."""
+    rights = AccessRights(0xFF)
+    assert rights.describe() == "|".join(name for name, _, _ in ACCESS_TABLE)
+
+
 def test_access_as_dict_is_json_safe() -> None:
     payload = AccessRights(READ | WRITE).as_dict()
     json.dumps(payload)
-    assert payload["currentread"] is True
-    assert payload["historyread"] is False
+    assert payload["current_read"] is True
+    assert payload["history_read"] is False
+    assert set(payload) == {attribute for _, _, attribute in ACCESS_TABLE}
 
 
 def make_descriptor(

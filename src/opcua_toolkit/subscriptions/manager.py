@@ -57,7 +57,7 @@ from asyncua.ua.uaerrors import UaError, UaStatusCodeError
 from opcua_toolkit.errors import NotConnectedError, SubscriptionClosedError, format_node_id
 from opcua_toolkit.limits import OperationLimits, chunked
 from opcua_toolkit.nodeids import NodeIdLike, to_nodeid
-from opcua_toolkit.settings import SubscriptionDefaults
+from opcua_toolkit.settings import SubscriptionDefaults, format_milliseconds
 from opcua_toolkit.subscriptions.model import (
     DEFAULT_SUBSCRIPTION_KEY,
     DataChangeRecord,
@@ -180,6 +180,42 @@ class SubscriptionManager:
         return self._publishing_interval
 
     @property
+    def session_timeout_seconds(self) -> float:
+        """The session timeout this client currently believes it has, in seconds.
+
+        After a connect this is the server's answer: the client library replaces the
+        requested timeout with the ``RevisedSessionTimeout`` from ``ActivateSession``.
+        Before a connect it is whatever the settings asked for. Chapter 14 needs the
+        distinction because a subscription's lifetime is bounded by the session carrying
+        it, and the session's real length is the server's, not the config file's.
+        """
+        timeout = getattr(self._client, "session_timeout", 0.0) or 0.0
+        return float(timeout) / 1000.0
+
+    def subscription_parameters(self) -> ua.CreateSubscriptionParameters:
+        """The ``CreateSubscription`` request this manager sends.
+
+        Chapter 10 established that a subscription is negotiated and that the revised
+        answer is the subscription that runs. A revised answer is only meaningful next to
+        the request that produced it, and a client whose numbers come from a library's
+        internal defaults has no request to compare them with: it cannot tell a revision
+        from a coincidence, and it cannot review a configuration against the timers it is
+        really asking for. So the toolkit states them: publishing interval, lifetime
+        count, keepalive count, notification cap - and :meth:`confirm_subscription` reads
+        back what the server made of them.
+        """
+        parameters = ua.CreateSubscriptionParameters()
+        parameters.RequestedPublishingInterval = self._publishing_interval
+        parameters.RequestedLifetimeCount = self._defaults.lifetime_count
+        parameters.RequestedMaxKeepAliveCount = self._defaults.keepalive_count(
+            self.session_timeout_seconds, self._publishing_interval
+        )
+        parameters.MaxNotificationsPerPublish = self._defaults.max_notifications_per_publish
+        parameters.PublishingEnabled = not self._stats.paused
+        parameters.Priority = 0
+        return parameters
+
+    @property
     def subscription_status(self) -> ua.StatusCode | None:
         """What the server last said about this subscription, or ``None`` if never.
 
@@ -262,7 +298,7 @@ class SubscriptionManager:
             if self._subscription is not None:
                 return
             self._subscription = await self._client.create_subscription(
-                period=self._publishing_interval,
+                self.subscription_parameters(),
                 handler=None,
                 # A rebuilt subscription that was paused before the session loss
                 # must come back paused: otherwise a reconnect silently turns the
@@ -282,9 +318,9 @@ class SubscriptionManager:
             self._stop.clear()
             self._consumer = asyncio.create_task(self._consume())
             _logger.info(
-                "subscription %s created with %sms publishing interval",
+                "subscription %s created with %s publishing interval",
                 self._stats.subscription_id,
-                self._publishing_interval,
+                format_milliseconds(self._publishing_interval),
             )
 
     async def stop(self) -> None:
@@ -803,17 +839,17 @@ class SubscriptionManager:
             self._publishing_interval = interval
             self._stats.publishing_interval = interval
             _logger.info(
-                "subscription %s now publishes every %sms",
+                "subscription %s now publishes every %s",
                 self._stats.subscription_id,
-                answer.revised_publishing_interval,
+                format_milliseconds(answer.effective_publishing_interval),
             )
             return answer
 
         _logger.warning(
-            "ModifySubscription answered %sms for a request of %sms: the server kept its own "
+            "ModifySubscription answered %s for a request of %s: the server kept its own "
             "interval, so the subscription is rebuilt instead",
-            answer.revised_publishing_interval,
-            interval,
+            format_milliseconds(answer.effective_publishing_interval),
+            format_milliseconds(interval),
         )
         self._publishing_interval = interval
         self._stats.publishing_interval = interval
