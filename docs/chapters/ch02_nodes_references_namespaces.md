@@ -91,7 +91,7 @@ Two consequences:
    that requires the server's namespace array - which is exactly what Chapter 13 reads
    before it uses an index.
 
-Namespaces are listed by the server object (`Server → ServerCapabilities → NamespaceArray`
+Namespaces are listed by the server object (`Objects → Server → NamespaceArray`
 in a browser), and the array is a fact about *this* server at *this* moment.
 
 ## 3. Implementation
